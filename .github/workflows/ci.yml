@@ -1,0 +1,84 @@
+# GitHub Actions CI：只做本地测试、镜像构建与语法校验。
+#
+# 安全：本工作流不含任何密钥，也不会访问真实 Mindwtr Cloud / SMTP / Webhook。
+# 单元测试是纯本地的；镜像冒烟用 --network none；编排校验只用占位符 token，
+# 且一律用 config --quiet（裸 config 会展开 env_file 明文）。
+#
+# 另有一组「敏感文件防呆」检查，保证以后任何提交都不会把 .env / 状态库 /
+# 工作记忆 / 密钥文件带进这个**公有**仓库。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 单元测试（Node 22，零依赖）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+
+  build:
+    name: 镜像与编排校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建生产镜像
+        run: docker build -t mindwtr-notify:ci .
+
+      - name: 镜像内禁网冒烟（Bun 能加载 TypeScript 模块）
+        run: |
+          docker run --rm --network none mindwtr-notify:ci \
+            bun -e "import('./src/rules/reminder-plan.ts').then(m => console.log('exports=' + Object.keys(m).length))"
+
+      - name: 镜像不含开发脚本与 .env
+        run: |
+          docker run --rm mindwtr-notify:ci sh -c \
+            'test ! -d /app/scripts && echo SCRIPTS_DIR=NO; test ! -e /app/.env && echo ENV_FILE=NO'
+
+      - name: 校验 Coolify 编排语法（占位符 token，不打印明文）
+        env:
+          MINDWTR_TOKEN: ci-placeholder-token
+        run: docker compose -f compose.coolify.yaml config --quiet
+
+      - name: 校验原生编排语法（空 .env，不含任何凭据）
+        run: |
+          : > .env
+          docker compose -f compose.yaml config --quiet
+          rm -f .env
+
+  no-secrets:
+    name: 敏感信息防呆
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 仓库里不得出现 .env / 状态库 / 工作记忆 / 密钥文件
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$|^data/|^\.workbuddy/|\.sqlite$|\.pem$|\.key$|\.p12$|\.pfx$'; then
+            echo "::error::检测到敏感文件被提交"
+            exit 1
+          fi
+          echo "OK: 无敏感文件"
+
+      - name: 不得出现带值的凭据键
+        run: |
+          if grep -rInE '^(MINDWTR_TOKEN|SMTP_PASS|SSH_URI|WEBHOOK_SECRET|HEALTHZ_TOKEN)=[^[:space:]#<]+' \
+            --exclude='*.md' --exclude='.env.example' --exclude-dir='.git' .; then
+            echo "::error::检测到疑似凭据明文"
+            exit 1
+          fi
+          echo "OK: 无凭据明文"

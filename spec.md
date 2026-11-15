@@ -3,7 +3,24 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.16 · 日期：2026-11-15
+> 版本：v1.17 · 日期：2026-11-15
+> **v1.17 变更**：**接入 GitHub 公有仓库与 CI，落地「敏感信息零提交」约定**（纯文档 + 一个工作流文件，产品代码 `src/` 一行未动）。
+> ① 目标仓库 `https://github.com/zlay0701/mindwtr-notify`（public，main 分支）；用户明确要求
+> **以后所有改动都提交到这里，且绝不提交敏感信息**，已写入用户级与项目级长期记忆。
+> ② 提交前做了全量敏感审计：以 `.env` 里 11 个真实值为关键词逐文件比对，
+> 排除 `.env` / `data/` / `.workbuddy/` 后的 54 个文件**不含任何真实凭据**；
+> 命中的仅是公开 Cloud 域名与公共 SMTP 主机名（部署文档必要信息），两处假密钥已验证不等于真实值。
+> `.gitignore` 加固：新增忽略 `.workbuddy/`、联调产物、`__pycache__/`、私钥 / 证书 / SQLite；
+> 本地 `git init -b main` 后用白名单 `git add`，首次提交 52 个文件。
+> ③ 新增 `.github/workflows/ci.yml`：`npm test`（Node 22）、`docker build` + 禁网镜像冒烟、
+> `compose.coolify.yaml` / `compose.yaml` 的 `config --quiet` 语法校验、
+> **no-secrets 防呆 job**（禁止 `.env` / 状态库 / 工作记忆 / 密钥文件、禁止带值凭据键）。全程零密钥。
+> ④ 文档整理：README 新增「代码仓库与提交约定」，部署指南新增「从 GitHub clone 部署」，
+> Coolify 教程写明具体仓库地址，六份 docs 头部版本统一到 v1.17。
+> ⚠️ **当前阻塞**：GitHub 连接器的 App 无权创建仓库（403 `Resource not accessible by integration`），
+> 本机已存 GitHub 凭据对 API 返回 401；仓库需用户在网页手动创建空仓库后才能推送与触发 CI。
+> 仓库创建前用 `git archive HEAD` 导出白名单内容做等价的远端构建 / 编排验证（见 §12.8）。
+> `npm test` 仍 **85/85**；`dry-run` 全程只读，`.env` 未改动。
 > **v1.16 变更**：**新增 Coolify 部署教程**（纯文档 + 一份编排文件，产品代码 `src/` 一行未动）。
 > 新增 `docs/coolify.md`：按「纯出站服务的三个默认选择 → 前置条件（Git 仓库 / .env 绝不提交）
 > → 六步部署 → 可直接粘贴的环境变量清单 → 域名与鉴权 → 卷 / 副本 / 预览部署 → 部署后验证
@@ -686,6 +703,32 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 注入假值后退出 0，渲染结果保留 `read_only`、`tmpfs`、卷、`replicas: 1`、`healthcheck`。
 **未创建 Coolify 资源、未部署、未发任何渠道消息**（教程明确标注需用户自行执行）。
 `npm test` **85/85**、`dry-run` 只读正常；BASE 规则与 strict 基线零改动。
+
+### 12.8 v1.17 GitHub 仓库与 CI 记录（2026-11-15）
+
+| 项 | 内容 |
+|---|---|
+| 目标仓库 | `https://github.com/zlay0701/mindwtr-notify`（public，main） |
+| 长期约定 | 所有改动提交到该仓库；**绝不提交敏感信息**（已写入用户级 + 项目级 MEMORY.md） |
+| 排除项 | `.env`、`data/`、`.workbuddy/`、联调产物、`__pycache__/`、私钥 / 证书 / SQLite |
+| 提交方式 | 白名单 `git add`（52 个文件）；提交作者用 GitHub noreply 邮箱 |
+| CI | `.github/workflows/ci.yml`：单测 / 镜像构建 + 禁网冒烟 / 两份编排语法校验 / no-secrets 防呆 |
+| 敏感审计方法 | 从 `.env` 取 11 个真实值（含 Webhook URL 的 key 参数），在全部候选文件里做子串比对；只输出文件名与键名，不输出值 |
+
+**审计结论**：候选文件中唯一命中的是公开 Cloud 域名（`MINDWTR_BASE_URL`）与公共 SMTP
+主机名（`SMTP_HOST`），分别出现在交接包的配置说明、联调脚本的「非生产地址硬检查」注释里，
+属于部署文档必要信息而非凭据；`scripts/deploy-test.py` 与 `tests/e2e-channels.mjs` 里的
+本地假密钥均不等于任何真实值。真实 token / 密码 / SSH 连接串 / Webhook key / 收件邮箱
+**未出现在任何候选文件**。
+
+**当前阻塞（非代码缺陷）**：连接器的 GitHub App 调用 `POST /user/repos` 返回 403
+`Resource not accessible by integration`；`GET /repos/zlay0701/mindwtr-notify` 为 404
+（仓库不存在）；本机 `git credential` 中已存的凭据对 GitHub API 返回 401。
+因此需要用户在 GitHub 网页创建一个**空的公有仓库** `mindwtr-notify`（不要勾 README / LICENSE），
+之后即可用连接器批量推送、触发 CI，并从该仓库 clone 到远端做正式部署。
+在此之前可用 `git archive HEAD` 导出与仓库一致的白名单内容做等价验证。
+
+**未改动**：产品代码、BASE 规则、strict 基线、`.env`。`npm test` **85/85**，`dry-run` 只读。
 
 ---
 

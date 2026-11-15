@@ -5,6 +5,18 @@
 
 > 想在新对话窗口继续开发？先读 **[HANDOFF.md](HANDOFF.md)**，里面有可直接复制的开工提示词。
 
+## 代码仓库与提交约定
+
+- **仓库**：[zlay0701/mindwtr-notify](https://github.com/zlay0701/mindwtr-notify)（**公有**，main 分支）。
+  **所有改动都提交到这里**，文档改完也要同步提交。
+- **绝不提交敏感信息**：`.env`、任何 token / 密码 / 连接串（`SSH_URI`）、Webhook key、真实收件邮箱、
+  `data/` 状态库、`.workbuddy/` 工作记忆、私钥与证书。`.gitignore` 已加固，
+  CI 的 `no-secrets` job 会在每次 push 时复查。
+- 提交前用白名单 `git add`，并用 `.env` 真实值做一次子串比对；
+  模板 `.env.example` 不含任何真实值，可以提交。
+- CI（`.github/workflows/ci.yml`）：`npm test`、`docker build` + 禁网镜像冒烟、
+  两份编排的 `config --quiet` 校验、敏感文件防呆。全程零密钥、不接触真实云端。
+
 ## 文档导航
 
 | 文档 | 内容 |
@@ -86,7 +98,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
 ## 目录结构
 
 ```
-spec.md              规格说明书（唯一权威规则来源，v1.16）
+spec.md              规格说明书（唯一权威规则来源，v1.17）
 HANDOFF.md           新对话窗口的交接包 / 开工提示词
 README.md            本文件
 .env.example         配置模板（不含真实凭据）
@@ -104,6 +116,7 @@ scripts/deploy-test.py  目标D部署联调执行器（prepare/up/verify/down/st
                     凭据内存 SFTP 上传、过滤 SSH_URI、compose 校验只用 config --quiet）
 docs/deployment.md    Docker Compose 部署与运维指南
 docs/coolify.md       Coolify 面板部署教程（含专用编排说明）
+.github/workflows/ci.yml GitHub Actions：单测、镜像构建、编排校验、敏感文件防呆
 docs/configuration.md 全量配置参考、验签协议、典型样例
 docs/admin-guide.md   /admin 管理页操作手册（鉴权、重发、API 速查）
 docs/cloud-api.md     Mindwtr Cloud API 调用清单（运行时 / 脚本 / 禁止）
@@ -219,6 +232,13 @@ SMTP 凭据仍完整注入容器，未来放行端口即可启用。
 编排用 `${VAR}` 白名单注入（`MINDWTR_TOKEN` 必填），**故意不暴露云端写开关**。
 已在 Coolify 4.7.5 / Traefik 3.7 环境只读核对，并用真实 Docker Compose 验证编排语法与必填约束；
 **本次未实际创建资源或部署**。`npm test` 仍 85/85，详见 `spec.md` §12.7。
+
+**v1.17 GitHub 公有仓库与 CI（2026-11-15）**：完成全量敏感信息审计（以 `.env` 真实值逐文件比对，
+候选 54 个文件无任何凭据）、`.gitignore` 加固、白名单提交 52 个文件，新增
+`.github/workflows/ci.yml`（单测 / 镜像构建 / 编排校验 / no-secrets 防呆），
+并把「所有改动提交到 `zlay0701/mindwtr-notify`、不许提交敏感信息」写入长期约定。
+⚠️ 仓库创建当前被权限阻塞：GitHub 连接器 App 返回 403、本机已存凭据对 API 返回 401，
+需在 GitHub 网页手动创建空的公有仓库后才能推送并触发 CI。详见 `spec.md` §12.8。
 
 ⚠️ 本机命令行若出现「0 条任务 + `错误：fetch failed`」：是**代理配置**问题，不是服务端故障
 （命令行 `HTTPS_PROXY` 指向 `127.0.0.1:48020`，系统代理其实是 `127.0.0.1:7897`，

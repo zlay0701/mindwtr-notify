@@ -1,6 +1,6 @@
 # Notify 管理页操作手册
 
-> 对应 `spec.md` **v1.16** · 管理页属 M4 / EXT-19 后半【官方无】，是**本地状态库的只读视图**，
+> 对应 `spec.md` **v1.17** · 管理页属 M4 / EXT-19 后半【官方无】，是**本地状态库的只读视图**，
 > 不重新拉取 Cloud API、不重算触发计划、不改动任何 BASE 规则。
 > 部署见 [部署指南](deployment.md)，配置项见 [配置参考](configuration.md)，
 > 服务实际调用的云端接口见 [Cloud API 调用清单](cloud-api.md)。

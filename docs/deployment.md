@@ -1,6 +1,6 @@
 # Notify 部署指南（Docker Compose）
 
-> 对应 `spec.md` **v1.16**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
+> 对应 `spec.md` **v1.17**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
 > 每个配置项的含义见 [配置参考](configuration.md)，管理页怎么用见 [页面操作手册](admin-guide.md)，
 > 调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，
 > 出站 POST 的数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)，
@@ -53,6 +53,25 @@ Notify 是**旁路只读服务**：定时用 `GET` 从自托管的 `mindwtr-clou
 
 > 本机开发期若 `dry-run` 报 `fetch failed`，多半是本机代理端口不一致（命令行代理变量与浏览器/系统代理不同，
 > Node `fetch` 默认不读代理变量）。**VPS 走公网直连不需要任何代理设置**，见 `HANDOFF.md` §7。
+
+### 2.1 从 GitHub 仓库获取代码（推荐）
+
+代码托管在公有仓库 [zlay0701/mindwtr-notify](https://github.com/zlay0701/mindwtr-notify)。
+仓库里**不含任何凭据**：`cp .env.example .env` 后只在服务器上填写，权限设 600，绝不提交。
+
+```bash
+git clone https://github.com/zlay0701/mindwtr-notify.git
+cd mindwtr-notify
+cp .env.example .env
+chmod 600 .env
+# 编辑 .env：填 MINDWTR_TOKEN、确认 MINDWTR_BASE_URL 是生产地址、配好渠道
+docker compose config --quiet     # 别用裸 config，它会展开 env_file 明文
+docker compose up -d --build
+```
+
+> `.gitignore` 已忽略 `.env` / `data/` / `.workbuddy/`、私钥、证书与 SQLite；
+> CI（`.github/workflows/ci.yml`）每次 push 都会跑单测、镜像构建与「敏感文件防呆」。
+> 仓库暂不可用时，也可用 `python scripts/remote.py sync` 从本机按白名单同步源码（不含 `.env`）。
 
 ---
 

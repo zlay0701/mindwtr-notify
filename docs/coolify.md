@@ -1,6 +1,6 @@
 # 在 Coolify 上部署 Notify
 
-> 对应 `spec.md` **v1.16** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 对应 `spec.md` **v1.17** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
 > 本文只讲 Coolify。原生 `docker compose` 见 [部署指南](deployment.md)，配置项含义见
 > [配置参考](configuration.md)，管理页用法见 [页面操作手册](admin-guide.md)，
 > 云端接口见 [Cloud API 调用清单](cloud-api.md)，出站消息格式见 [Webhook 输出格式](webhook-payload.md)。
@@ -32,13 +32,15 @@ Notify 不接收入站业务请求，它只做两件事：定时 `GET` 拉取 Mi
 | 项 | 要求 |
 |---|---|
 | Coolify | v4（本文按 4.7.5 的界面写；不同小版本菜单名可能略有差异） |
-| 代码来源 | **一个 Git 仓库**（GitHub / GitLab / Gitea / 自建均可），Coolify 能 clone |
+| 代码来源 | 公有仓库 `https://github.com/zlay0701/mindwtr-notify.git`（或你自己的 fork），Coolify 能 clone |
 | 构建 | 目标服务器装好 Docker + Compose（Coolify 自带），**本机不需要 Docker / Bun** |
 | 凭据 | `MINDWTR_TOKEN`（FULL token，capture-only token 会 403）、至少一个投递渠道 |
 | 网络 | 服务器能出站访问 `MINDWTR_BASE_URL`、SMTP / Webhook 地址 |
 | 仓库安全 | `.env` **绝不提交**；项目 `.gitignore` 已忽略 `.env` / `.env.*` |
 
 ### 2.1 把代码放进 Git 仓库
+
+> 若 `zlay0701/mindwtr-notify` 已建好且代码已推送，可跳过本节，直接从 §4 步骤 1 开始。
 
 本工作区目前不是 Git 仓库，需要先推到一个 Coolify 能访问的仓库：
 

@@ -1,6 +1,6 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-15 22:55（v1.16 Coolify 部署教程）· 对应 `spec.md` **v1.16**
+> 生成时间：2026-11-13 · 最后整理：2026-11-15 23:20（v1.17 GitHub 仓库与 CI）· 对应 `spec.md` **v1.17**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
@@ -184,6 +184,14 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
 与 `${MINDWTR_TOKEN:?}` 必填约束；**未实际创建 Coolify 资源或部署**。
 `npm test` 仍 85/85。详见 §4 第 19 条与 `spec.md` §12.7。
 
+**v1.17 GitHub 公有仓库与 CI（2026-11-15 23:20）**：纯文档 + 一个工作流文件，`src/` 一行未动。
+用户明确要求「以后所有改动都提交到 `zlay0701/mindwtr-notify`，不许提交敏感信息」，
+已写入用户级与项目级 MEMORY.md。完成全量敏感审计（比对 `.env` 真实值）、
+`.gitignore` 加固、白名单 `git add` 首次提交 52 个文件、新增 `.github/workflows/ci.yml`
+（单测 / 镜像构建 / 编排校验 / no-secrets 防呆）。
+⚠️ **仓库尚未创建**：GitHub 连接器 App 无权建仓（403），本机 GCM 凭据对 API 401，
+需用户在网页创建空的公有仓库后再推送。详见 §4 第 20 条与 `spec.md` §12.8。
+
 ---
 
 ## 4. 已确认的实测事实（不要重复花积分探测）
@@ -348,6 +356,24 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
       探活要在容器内用 `bun -e` 或 Coolify Terminal，管理页临时访问需按容器 IP 做 SSH 转发。
       教程已按此写，别沿用原生部署的回环端口做法。
     - **本次未创建 Coolify 资源、未部署、未发任何渠道消息**；教程里明确标注哪些命令会真发消息。
+20. **v1.17 GitHub 公有仓库与 CI（2026-11-15）**：纯文档 + 一个工作流文件，`src/` 一行未动。
+    - 用户长期要求：**所有改动提交到 `zlay0701/mindwtr-notify`（public, main），绝不提交敏感信息**；
+      已写入用户级 `MEMORY.md` 与项目 `.workbuddy/memory/MEMORY.md`。
+    - 敏感审计：从 `.env` 取 11 个真实值（含 Webhook URL 的 `key` 参数）对 54 个候选文件做子串比对，
+      只输出文件名与键名。结论：除公开 Cloud 域名 / 公共 SMTP 主机名外无任何命中；
+      `deploy-test.py` 与 `e2e-channels.mjs` 里的假密钥不等于真实值。
+      `.env` / `data/`（SQLite + 测试邮件）/ `.workbuddy/`（工作记忆）全部排除。
+    - `.gitignore` 加固：新增 `.workbuddy/`、联调产物（`compose.override.yaml` /
+      `compose.auth.yaml` / `hook-receiver.mjs`）、`__pycache__/`、`*.pyc`、私钥 / 证书 / SQLite。
+      本地 `git init -b main`、noreply 作者、白名单 `git add`，首次提交 **52 个文件**。
+    - 新增 `.github/workflows/ci.yml`：`npm test`（Node 22）、`docker build` + 禁网镜像冒烟、
+      镜像不含 scripts/.env、`compose.coolify.yaml` 与 `compose.yaml` 的 `config --quiet` 校验、
+      **no-secrets 防呆 job**（禁止 `.env` / 状态库 / 工作记忆 / 密钥文件、禁止带值凭据键）。零密钥。
+    - ⚠️ **仓库尚未创建**：GitHub 连接器 `POST /user/repos` 返回 403
+      `Resource not accessible by integration`（App 无建仓权限）；
+      `GET /repos/zlay0701/mindwtr-notify` 为 404；本机 `git credential` 凭据对 API 返回 401。
+      **需用户在 GitHub 网页创建空的公有仓库**（不勾 README / LICENSE），之后即可推送并触发 CI。
+    - 仓库不可用期间，用 `git archive HEAD` 导出与仓库一致的白名单内容做等价远端验证。
 
 ---
 
@@ -412,6 +438,7 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
 | `package.json` | npm 脚本（零运行时依赖）：`test` / `dry-run` / `once` / `start` / `probe` / `seed:test` |
 | `Dockerfile` / `compose.yaml` | Bun 1.3 镜像（只 COPY `package.json` + `src/`）/ `replicas: 1`、`healthcheck`、`read_only: true` + `tmpfs`、healthz 只映射回环、头部部署前检查清单 |
 | `compose.coolify.yaml` | v1.16：Coolify 专用编排，见上方文件地图条目 |
+| `.github/workflows/ci.yml` | v1.17：零密钥 CI（单测 / 镜像构建 / 编排校验 / **no-secrets 敏感文件防呆**） |
 | `.dockerignore` | 构建上下文排除规则的单一事实来源：排除 `.env` / `scripts/` / `tests/` / `data/` 与联调文件，防止凭据与造数脚本进镜像 |
 | `.env.example` / `.gitignore` | 配置模板 / 凭据排除规则 |
 | `.workbuddy/memory/` | 项目长期约定 `MEMORY.md` + 按天 append-only 工作日志（同一工作区换窗口会自动带入） |
@@ -521,6 +548,10 @@ NODE_USE_ENV_PROXY=1 npm run dry-run
 - **别只看 HTTP 2xx 就说「投递成功」**：企微 / 钉钉 / 飞书会回 `200 + errcode!=0`；
   v1.15 起 `postWebhook` 已做业务码校验，新增接收端 / 适配器时不要绕过它。
   排障先跑 `--test-webhook --log-level=debug` 看适配器名与 `errcode`，详见 `docs/webhook-payload.md` §10。
+- **所有改动都要提交到 GitHub 公有仓库 `zlay0701/mindwtr-notify`（main），且不许提交敏感信息**：
+  提交前用 `.env` 真实值做子串比对，白名单 `git add`；`.gitignore` 已忽略
+  `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite，CI 的 `no-secrets` job 会二次防呆。
+  连接器 App 无权建仓（403），本机 GCM 凭据对 API 401，仓库需用户网页手动创建后再推送。
 - **Coolify 部署别直接拿 `compose.yaml`**：要用 `docs/coolify.md` + `compose.coolify.yaml`
   （`${VAR}` 白名单注入、不发布宿主端口、凭据只在面板）。Coolify 版没发布端口，
   宿主机 `curl 127.0.0.1:8788` 不通，探活得进容器；另外**必须关掉 PR 预览部署**，
