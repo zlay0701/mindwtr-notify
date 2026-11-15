@@ -16,6 +16,10 @@
   模板 `.env.example` 不含任何真实值，可以提交。
 - CI（`.github/workflows/ci.yml`）：`npm test`、`docker build` + 禁网镜像冒烟、
   两份编排的 `config --quiet` 校验、敏感文件防呆。全程零密钥、不接触真实云端。
+- **提交身份区分**：AI 助手的提交使用 `Notify Agent <notify-agent@users.noreply.github.com>`，
+  你自己的提交保持 `zlay0701 <18520556+zlay0701@users.noreply.github.com>`。
+  仓库默认身份**仍是你的**，所以直接 `git commit` 就是你本人；助手通过
+  `scripts/agent-git.sh commit -m "..."` 临时切换身份，不会改动 `.git/config`。
 
 ## 文档导航
 

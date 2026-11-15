@@ -712,6 +712,7 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 | 长期约定 | 所有改动提交到该仓库；**绝不提交敏感信息**（已写入用户级 + 项目级 MEMORY.md） |
 | 排除项 | `.env`、`data/`、`.workbuddy/`、联调产物、`__pycache__/`、私钥 / 证书 / SQLite |
 | 提交方式 | 白名单 `git add`（52 个文件）；提交作者用 GitHub noreply 邮箱 |
+| 提交身份 | 助手提交为 `Notify Agent <notify-agent@users.noreply.github.com>`，所有者提交为 `zlay0701 <18520556+zlay0701@users.noreply.github.com>`；仓库默认身份保持所有者，助手通过 `scripts/agent-git.sh` 只对单次命令覆盖身份 |
 | CI | `.github/workflows/ci.yml`：单测 / 镜像构建 + 禁网冒烟 / 两份编排语法校验 / no-secrets 防呆 |
 | 敏感审计方法 | 从 `.env` 取 11 个真实值（含 Webhook URL 的 key 参数），在全部候选文件里做子串比对；只输出文件名与键名，不输出值 |
 

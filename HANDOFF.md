@@ -439,6 +439,7 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
 | `Dockerfile` / `compose.yaml` | Bun 1.3 镜像（只 COPY `package.json` + `src/`）/ `replicas: 1`、`healthcheck`、`read_only: true` + `tmpfs`、healthz 只映射回环、头部部署前检查清单 |
 | `compose.coolify.yaml` | v1.16：Coolify 专用编排，见上方文件地图条目 |
 | `.github/workflows/ci.yml` | v1.17：零密钥 CI（单测 / 镜像构建 / 编排校验 / **no-secrets 敏感文件防呆**） |
+| `scripts/agent-git.sh` | 2026-11-15：以 `Notify Agent` 身份执行 git 命令，让助手提交与所有者提交在历史里可区分；只覆盖本次命令，不改 `.git/config` |
 | `.dockerignore` | 构建上下文排除规则的单一事实来源：排除 `.env` / `scripts/` / `tests/` / `data/` 与联调文件，防止凭据与造数脚本进镜像 |
 | `.env.example` / `.gitignore` | 配置模板 / 凭据排除规则 |
 | `.workbuddy/memory/` | 项目长期约定 `MEMORY.md` + 按天 append-only 工作日志（同一工作区换窗口会自动带入） |
@@ -548,6 +549,8 @@ NODE_USE_ENV_PROXY=1 npm run dry-run
 - **别只看 HTTP 2xx 就说「投递成功」**：企微 / 钉钉 / 飞书会回 `200 + errcode!=0`；
   v1.15 起 `postWebhook` 已做业务码校验，新增接收端 / 适配器时不要绕过它。
   排障先跑 `--test-webhook --log-level=debug` 看适配器名与 `errcode`，详见 `docs/webhook-payload.md` §10。
+- **提交身份要区分**：助手提交用 `scripts/agent-git.sh`（作者 `Notify Agent`），
+  所有者自己 `git commit` 仍是 `zlay0701`；不要图省事用 `git -c` 把助手提交写成所有者身份。
 - **所有改动都要提交到 GitHub 公有仓库 `zlay0701/mindwtr-notify`（main），且不许提交敏感信息**：
   提交前用 `.env` 真实值做子串比对，白名单 `git add`；`.gitignore` 已忽略
   `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite，CI 的 `no-secrets` job 会二次防呆。
