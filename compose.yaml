@@ -1,0 +1,71 @@
+# Notify 单实例部署（EXT-14【增强】：replicas=1，多实例会重复投递）
+#
+# 生产部署前检查清单（目标 E，逐条确认后再 up）：
+#   1. 把 .env 的 MINDWTR_BASE_URL 切回生产地址 https://mindwtr-cloud.zlay.dpdns.org
+#      （开发期常指向测试实例；.env.example 里已经是生产地址，可直接对照）。
+#   2. 移除联调专用的 compose.override.yaml（它把 SMTP 关掉、Webhook 指向本地接收端）。
+#   3. 校验配置用 docker compose config --quiet；不要用会打印 env_file 明文的 config。
+#   4. 确认只起一个实例：replicas: 1，且没有第二份 compose 指向同一个状态库卷。
+#
+# 用法：把 .env.example 复制成 .env 并填好，然后 docker compose up -d --build
+services:
+  mindwtr-notify:
+    build: .
+    image: mindwtr-notify:local
+    container_name: mindwtr-notify
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NOTIFY_STATE_PATH: /app/data/notify.sqlite
+      HEALTHZ_PORT: "8788"
+    volumes:
+      - notify-data:/app/data
+    # EXT-15【官方无】：根文件系统只读，唯一可写位置是状态库卷 /app/data 与 /tmp。
+    # 即使进程被入侵也改写不了镜像里的代码；SQLite WAL 与文件通道都落在卷上。
+    read_only: true
+    tmpfs:
+      # Bun 启动 / healthcheck 的临时文件需要可写目录，rootfs 只读时由 tmpfs 提供。
+      - /tmp:size=16m,mode=1777
+    ports:
+      # 只映射到本机回环，healthz 不对外暴露
+      - "127.0.0.1:8788:8788"
+    healthcheck:
+      # 用镜像自带的 Bun 发请求，而不是 curl / wget：
+      #   1) 不依赖 alpine 镜像里是否装了 wget；
+      #   2) HEALTHZ_TOKEN 非空时 /healthz 需要 Bearer，这里从环境变量读取，
+      #      token 既不写进 compose.yaml，也不会出现在 docker inspect 的命令里；
+      #   3) 刻意用字符串拼接而不是模板字面量，避免 ${...} 被 Compose 当成变量插值。
+      test:
+        - CMD
+        - bun
+        - -e
+        - |-
+          const port = process.env.HEALTHZ_PORT || '8788';
+          const token = process.env.HEALTHZ_TOKEN || '';
+          const headers = token ? { Authorization: 'Bearer ' + token } : {};
+          fetch('http://127.0.0.1:' + port + '/healthz',
+                { headers: headers, signal: AbortSignal.timeout(4000) })
+            .then(function (r) { process.exit(r.ok ? 0 : 1); })
+            .catch(function () { process.exit(1); });
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # 默认走公网 HTTPS 地址，零耦合。
+    # 若要与 mindwtr-cloud 同机内网直连，取消下面注释，并在 .env 里把
+    # MINDWTR_BASE_URL 改为 http://mindwtr-cloud-rifyenhfmtws99c3pea0zu4d:8787
+    # networks:
+    #   - mindwtr-net
+    deploy:
+      replicas: 1
+
+volumes:
+  notify-data:
+
+# 该网络是面板已创建的外部网络，必须 external: true，
+# 否则 Compose 会新建一个同名前缀的网络，两个容器仍然不通。
+# networks:
+#   mindwtr-net:
+#     external: true
+#     name: rifyenhfmtws99c3pea0zu4d

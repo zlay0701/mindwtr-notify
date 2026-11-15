@@ -1,0 +1,32 @@
+# 构建上下文排除规则（目标 E）
+# 生产镜像只需要 package.json 与 src/，其余一律不带进上下文。
+# 采用「逐条排除」而不是白名单：即使以后 Dockerfile 新增 COPY，凭据也不会被意外带进去。
+
+# 1. 凭据：.env 含 MINDWTR_TOKEN / SMTP_PASS / SSH_URI，绝不能进构建上下文或镜像。
+.env
+.env.*
+
+# 2. 运行期数据与本地产物：SQLite 状态库、测试邮件、日志。
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# 3. 开发期脚本、测试与文档：
+#    scripts/ 里有能写测试实例的 seed-test-data.mjs 与本机运维 .py，
+#    tests/ 与 docs/ 只是开发期资料，生产镜像都不需要。
+scripts/
+tests/
+docs/
+.workbuddy/
+*.md
+
+# 4. 联调专用文件（只在远端部署目录出现，不进构建上下文）。
+compose.override.yaml
+hook-receiver.mjs
+
+# 5. 版本控制与本地工具缓存。
+.git/
+__pycache__/
+*.pyc

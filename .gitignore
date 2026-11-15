@@ -1,0 +1,41 @@
+# 忽略规则（安全优先）
+
+# 1. 凭据：.env 里有 MINDWTR_TOKEN 等密钥，绝不能提交。
+#    只保留 .env.example 作为不含真实值的模板。
+.env
+.env.*
+!.env.example
+
+# 2. 运行期数据：SQLite 状态库、测试邮件、日志，都是本机产物。
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# 3. 依赖与构建产物
+node_modules/
+dist/
+coverage/
+__pycache__/
+*.pyc
+
+# 4. 编辑器 / 系统垃圾文件
+.DS_Store
+Thumbs.db
+
+# 5. 本机 / 联调产物：含本机运维细节或凭据，绝不进公有仓库
+.workbuddy/
+compose.override.yaml
+compose.auth.yaml
+hook-receiver.mjs
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 注意：.workbuddy/ 是 WorkBuddy 的项目数据（含工作记忆），不是临时缓存，
+# 不要删除；这里只是不纳入 Git（目标为公有仓库），本机文件保持原样。

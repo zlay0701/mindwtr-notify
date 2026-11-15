@@ -1,0 +1,140 @@
+# Notify · Coolify 专用编排（配套教程见 docs/coolify.md）
+#
+# 为什么不能直接用根目录的 compose.yaml：
+#   1. 那里用 `env_file: - .env`。Coolify 的凭据只能放在面板的 Environment Variables 里，
+#      仓库中不应存在 .env；而且 env_file 会把本机运维用的 SSH_URI 之类一并带进容器。
+#      本文件改成 `${VAR}` 显式白名单，只有这里列出的键才会注入容器。
+#   2. 那里写死了 container_name。Coolify 会自行给容器加前缀 / 重命名，写死容易冲突。
+#   3. 那里把端口发布到宿主 127.0.0.1:8788。Coolify 用代理网络直接访问容器端口，
+#      发布宿主端口会绕过域名路由；且 Notify 是纯出站服务，默认根本不需要公网域名。
+#
+# 其余部分（read_only / tmpfs / healthcheck / 命名卷 / replicas=1 / 单实例）
+# 与生产 compose.yaml 完全一致，不要在这里削弱。
+#
+# 变量写法（Coolify 官方语法）：
+#   ${VAR}          → 面板里生成可编辑变量，留空时代码走内置默认值
+#   ${VAR:-默认值}   → 面板里预填默认值
+#   ${VAR:?}        → 必填；为空时 Coolify 阻止部署
+#
+# 安全：NOTIFY_ALLOW_WRITE / NOTIFY_COMPLETE_ACTION 故意**不列出**。
+#       它们是对云端写端点的两道闸门，硬约束要求对生产实例只能发 GET；
+#       不注入这两个键，代码就用内置 false，面板里也无法误开。
+#       NOTIFY_STATE_PATH / HEALTHZ_PORT 由下面写死，避免状态库被改到只读根文件系统上。
+#
+# 用法：Coolify 里选 Git 仓库 + Docker Compose Build Pack，
+#       Base Directory = 仓库根，Docker Compose Location = /compose.coolify.yaml。
+# 注意：本文件只给 Coolify 用。本机直接 `docker compose -f compose.coolify.yaml config`
+#       会因 ${...} 未设置而报错，属正常现象，不是配置错误。
+
+services:
+  mindwtr-notify:
+    build: .
+    image: mindwtr-notify:coolify
+    restart: unless-stopped
+
+    # ---- 云端只读连接（唯一必填的凭据）----
+    environment:
+      MINDWTR_BASE_URL: ${MINDWTR_BASE_URL:-https://mindwtr-cloud.zlay.dpdns.org}
+      MINDWTR_TOKEN: ${MINDWTR_TOKEN:?}
+
+      # ---- 全局 / 日志 ----
+      NOTIFY_TIMEZONE: ${NOTIFY_TIMEZONE:-Asia/Shanghai}
+      NOTIFY_LOG_LEVEL: ${NOTIFY_LOG_LEVEL:-info}
+      NOTIFY_STRICT: ${NOTIFY_STRICT:-false}
+      NOTIFY_POLL_SECONDS: ${NOTIFY_POLL_SECONDS}
+      NOTIFY_GRACE_MS: ${NOTIFY_GRACE_MS}
+      NOTIFY_CATCH_UP: ${NOTIFY_CATCH_UP}
+      NOTIFY_NAMESPACE: ${NOTIFY_NAMESPACE:-default}
+
+      # ---- 与官方一致的全局规则 ----
+      NOTIFY_TASK_REMINDER_DEFAULT: ${NOTIFY_TASK_REMINDER_DEFAULT}
+      NOTIFY_INCLUDE_START: ${NOTIFY_INCLUDE_START}
+      NOTIFY_INCLUDE_DUE: ${NOTIFY_INCLUDE_DUE}
+      NOTIFY_INCLUDE_REVIEW: ${NOTIFY_INCLUDE_REVIEW}
+      NOTIFY_INCLUDE_REFERENCE: ${NOTIFY_INCLUDE_REFERENCE}
+      NOTIFY_DIGEST_MORNING: ${NOTIFY_DIGEST_MORNING}
+      NOTIFY_DIGEST_EVENING: ${NOTIFY_DIGEST_EVENING}
+      NOTIFY_DIGEST_WEEKLY: ${NOTIFY_DIGEST_WEEKLY}
+      NOTIFY_DIGEST_WITHOUT_DESCRIPTION: ${NOTIFY_DIGEST_WITHOUT_DESCRIPTION}
+
+      # ---- A 类扩展（默认关闭，strict 可一键归零）----
+      NOTIFY_DATE_ONLY: ${NOTIFY_DATE_ONLY}
+      NOTIFY_BACKLOG: ${NOTIFY_BACKLOG}
+      NOTIFY_QUIET_HOURS: ${NOTIFY_QUIET_HOURS}
+
+      # ---- 可靠性 ----
+      NOTIFY_FAILURE_ALERT_AFTER: ${NOTIFY_FAILURE_ALERT_AFTER}
+      NOTIFY_MAX_BACKOFF_MS: ${NOTIFY_MAX_BACKOFF_MS}
+
+      # ---- 邮件通道 ----
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Notify}
+      SMTP_TO: ${SMTP_TO}
+
+      # ---- Webhook 通道与平台适配器 ----
+      WEBHOOK_ENABLED: ${WEBHOOK_ENABLED:-false}
+      WEBHOOK_URLS: ${WEBHOOK_URLS}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-3}
+      NOTIFY_WEBHOOK_ADAPTERS: ${NOTIFY_WEBHOOK_ADAPTERS}
+      NOTIFY_WEBHOOK_SECRETS: ${NOTIFY_WEBHOOK_SECRETS}
+
+      # ---- 标签路由 ----
+      NOTIFY_TAG_RULES: ${NOTIFY_TAG_RULES}
+      NOTIFY_TAG_SILENT: ${NOTIFY_TAG_SILENT}
+      NOTIFY_TAG_EMAIL: ${NOTIFY_TAG_EMAIL}
+      NOTIFY_TAG_WEBHOOK: ${NOTIFY_TAG_WEBHOOK}
+
+      # ---- /healthz 与 /admin ----
+      HEALTHZ_TOKEN: ${HEALTHZ_TOKEN}
+      NOTIFY_ADMIN_PAGE: ${NOTIFY_ADMIN_PAGE:-true}
+      NOTIFY_ADMIN_TOKEN: ${NOTIFY_ADMIN_TOKEN}
+      NOTIFY_ADMIN_RETRY: ${NOTIFY_ADMIN_RETRY:-false}
+      NOTIFY_ADMIN_MAX_RECORDS: ${NOTIFY_ADMIN_MAX_RECORDS:-100}
+
+      # 这两个是写死值，不要改成 ${...}：状态库必须落在可写卷上。
+      NOTIFY_STATE_PATH: /app/data/notify.sqlite
+      HEALTHZ_PORT: "8788"
+
+    volumes:
+      # Coolify 会给 managed volume 加前缀，实际名字在 Persistent Storages 页面看。
+      - notify-data:/app/data
+
+    # EXT-15【官方无】：根文件系统只读，唯一可写位置是卷 /app/data 与 tmpfs /tmp。
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+
+    healthcheck:
+      # 用镜像自带的 Bun 请求 /healthz，不依赖 alpine 是否装 curl / wget；
+      # HEALTHZ_TOKEN 非空时从容器环境变量构造 Bearer 头，token 不进 compose 与 docker inspect。
+      # 刻意用字符串拼接而非模板字面量，避免 ${...} 被 Compose 当成变量插值吃掉。
+      test:
+        - CMD
+        - bun
+        - -e
+        - |-
+          const port = process.env.HEALTHZ_PORT || '8788';
+          const token = process.env.HEALTHZ_TOKEN || '';
+          const headers = token ? { Authorization: 'Bearer ' + token } : {};
+          fetch('http://127.0.0.1:' + port + '/healthz',
+                { headers: headers, signal: AbortSignal.timeout(4000) })
+            .then(function (r) { process.exit(r.ok ? 0 : 1); })
+            .catch(function () { process.exit(1); });
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # 单实例硬约束：没有 leader election，起两个副本或两套资源共用一个卷会重复投递。
+    deploy:
+      replicas: 1
+
+volumes:
+  notify-data:

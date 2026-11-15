@@ -1,0 +1,18 @@
+{
+  "name": "mindwtr-notify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Notify - 自托管 Mindwtr Cloud 的只读提醒中继服务",
+  "scripts": {
+    "start": "node src/cli.ts",
+    "dry-run": "node src/cli.ts --dry-run --strict",
+    "once": "node src/cli.ts --once",
+    "probe": "node scripts/probe.mjs",
+    "seed:test": "node scripts/seed-test-data.mjs",
+    "test": "node --test tests/reminder-plan.test.ts tests/m2-rules.test.ts tests/m2-delivery.test.ts tests/m3.test.ts tests/official-golden.test.ts tests/m4.test.ts tests/logging.test.ts tests/webhook-response.test.ts"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}
