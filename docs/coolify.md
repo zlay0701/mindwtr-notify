@@ -1,6 +1,6 @@
 # 在 Coolify 上部署 Notify
 
-> 对应 `spec.md` **v1.17** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 对应 `spec.md` **v1.18** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
 > 本文只讲 Coolify。原生 `docker compose` 见 [部署指南](deployment.md)，配置项含义见
 > [配置参考](configuration.md)，管理页用法见 [页面操作手册](admin-guide.md)，
 > 云端接口见 [Cloud API 调用清单](cloud-api.md)，出站消息格式见 [Webhook 输出格式](webhook-payload.md)。

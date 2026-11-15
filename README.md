@@ -1,5 +1,7 @@
 # Notify · Mindwtr 提醒服务
 
+[![CI](https://github.com/zlay0701/mindwtr-notify/actions/workflows/ci.yml/badge.svg)](https://github.com/zlay0701/mindwtr-notify/actions/workflows/ci.yml)
+
 旁路提醒服务：按 **Mindwtr 官方规则**算出提醒触发点，再转发到邮件 / Webhook。
 不接管客户端提醒、不改写任务数据、对云端**只读**。
 
@@ -8,7 +10,7 @@
 ## 代码仓库与提交约定
 
 - **仓库**：[zlay0701/mindwtr-notify](https://github.com/zlay0701/mindwtr-notify)（**公有**，main 分支）。
-  **所有改动都提交到这里**，文档改完也要同步提交。
+  **所有改动都提交到这里**，文档改完也要同步提交。CI 徽章见页首，2026-11-15 首次运行三个 job 全绿。
 - **绝不提交敏感信息**：`.env`、任何 token / 密码 / 连接串（`SSH_URI`）、Webhook key、真实收件邮箱、
   `data/` 状态库、`.workbuddy/` 工作记忆、私钥与证书。`.gitignore` 已加固，
   CI 的 `no-secrets` job 会在每次 push 时复查。
@@ -244,8 +246,9 @@ SMTP 凭据仍完整注入容器，未来放行端口即可启用。
 候选 54 个文件无任何凭据）、`.gitignore` 加固、白名单提交 52 个文件，新增
 `.github/workflows/ci.yml`（单测 / 镜像构建 / 编排校验 / no-secrets 防呆），
 并把「所有改动提交到 `zlay0701/mindwtr-notify`、不许提交敏感信息」写入长期约定。
-⚠️ 仓库创建当前被权限阻塞：GitHub 连接器 App 返回 403、本机已存凭据对 API 返回 401，
-需在 GitHub 网页手动创建空的公有仓库后才能推送并触发 CI。详见 `spec.md` §12.8。
+仓库已上线：main = `63c382c`，GitHub Actions `CI` **completed / success**（三个 job 全绿），
+远端真实 `git clone` 后跑通 `npm test` 85/85、`docker build`、隔离 compose 部署
+（`healthz`/`admin` 200、`HEALTH=healthy`、`READONLY=true`），验证后已清理。详见 `spec.md` §12.9。
 
 ⚠️ 本机命令行若出现「0 条任务 + `错误：fetch failed`」：是**代理配置**问题，不是服务端故障
 （命令行 `HTTPS_PROXY` 指向 `127.0.0.1:48020`，系统代理其实是 `127.0.0.1:7897`，

@@ -1,6 +1,6 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-15 23:20（v1.17 GitHub 仓库与 CI）· 对应 `spec.md` **v1.17**
+> 生成时间：2026-11-13 · 最后整理：2026-11-15 23:40（v1.18 仓库上线 + CI 全绿 + 远端部署验证）· 对应 `spec.md` **v1.18**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
@@ -192,6 +192,14 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
 ⚠️ **仓库尚未创建**：GitHub 连接器 App 无权建仓（403），本机 GCM 凭据对 API 401，
 需用户在网页创建空的公有仓库后再推送。详见 §4 第 20 条与 `spec.md` §12.8。
 
+**v1.18 仓库上线与验证（2026-11-15 23:40）**：用户在网页建好空仓库并首次 `git push` 后全部打通。
+远端 main = `63c382c`（4 个 commit，作者 `Notify Agent`、**不签名**），受版本控制文件 54 个；
+GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 / 镜像与编排校验 / 敏感信息防呆）
+全绿，徽章 passing；远端从 `github.com` 真实 clone 后 `npm test` 85/85、两份编排 `config --quiet`
+退出 0、`docker build` 成功、隔离 compose 部署 `healthz`/`admin` 200 且 `HEALTH=healthy` /
+`READONLY=true`，随后清理无残留。部署用假 token + 不可达 Cloud 地址 + 渠道全关，零副作用。
+详见 §4 第 21 条与 `spec.md` §12.9。
+
 ---
 
 ## 4. 已确认的实测事实（不要重复花积分探测）
@@ -374,6 +382,24 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
       `GET /repos/zlay0701/mindwtr-notify` 为 404；本机 `git credential` 凭据对 API 返回 401。
       **需用户在 GitHub 网页创建空的公有仓库**（不勾 README / LICENSE），之后即可推送并触发 CI。
     - 仓库不可用期间，用 `git archive HEAD` 导出与仓库一致的白名单内容做等价远端验证。
+21. **v1.18 仓库上线 + CI 全绿 + 从 GitHub 部署（2026-11-15）**：纯文档，产品代码零改动。
+    - 用户在 GitHub 网页创建空仓库并执行 `git push -u origin main` 后，远端 main = `63c382c`，
+      本地与远端同步；`git ls-files` 54 个，无 `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite。
+    - GitHub Actions `CI` run `43730537851`：**completed / success**；
+      三个 job 全绿——「单元测试（Node 22）」7 步、「镜像与编排校验」9 步、「敏感信息防呆」6 步，
+      失败步骤 0；徽章 `passing`。
+    - 远端真实 clone 验证（`/data/home/notify-github-test`，验证后已删）：
+      `git clone` commit `63c382c` → `npm test` 85/85 → `compose.coolify.yaml` /
+      `compose.yaml` 的 `config --quiet` 均退出 0 → `docker build` 成功 →
+      `compose up -d` 起隔离容器（端口 `127.0.0.1:8789`）→ `healthz`/`admin` 200、
+      `HEALTH=healthy`、`READONLY=true`、卷 `notify-github-test_notify-data -> /app/data` →
+      `down` + 删卷 + 删目录，`NO_CONTAINERS` / `NO_NETWORK` / `DIR_CLEANED`。
+    - 凭据纪律：远端 `.env` 是脱敏假值（`MINDWTR_TOKEN=ci-fake-token-for-verification`、
+      `MINDWTR_BASE_URL=http://127.0.0.1:9`、`WEBHOOK_ENABLED=false`、`SMTP_ENABLED=false`），
+      **不连真实云端、不发消息**；真实 `.env` 从未上传、从未进 Git。
+    - 提交身份与签名：助手 = `Notify Agent` + 不签名；所有者 = `zlay0701` + 签名（Verified）。
+    - 本机 `git push` 的 GCM 凭据曾报 `Invalid username or token`（GitHub 不支持密码认证），
+      用户重新登录后恢复；**push 命令当时被环境安全策略拦截，未重试**，改由用户执行。
 
 ---
 

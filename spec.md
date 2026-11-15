@@ -3,7 +3,19 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.17 · 日期：2026-11-15
+> 版本：v1.18 · 日期：2026-11-15
+> **v1.18 变更**：**代码已推送到 GitHub 公有仓库，CI 全绿，远端从 GitHub clone 部署验证通过**（纯文档，产品代码 `src/` 一行未动）。
+> ① 仓库 `https://github.com/zlay0701/mindwtr-notify` 已上线（main = `63c382c`，54 个受版本控制的文件），
+> 本地与远端同步，推送前按白名单与 `.env` 真实值做了二次扫描，**零凭据**。
+> ② GitHub Actions `CI` 首次运行 **completed / success**：三个 job 全绿——
+> 「单元测试（Node 22）」7 步、「镜像与编排校验」9 步、「敏感信息防呆」6 步，失败步骤 0；徽章 passing。
+> ③ 远端从 `github.com` **真实 clone**（commit `63c382c`、`git ls-files` 54 个）后验证通过：
+> 无 `.env` / `data/` / `.workbuddy/`；`npm test` **85/85**；两份编排 `config --quiet` 退出 0；
+> `docker build` 成功；隔离 compose 部署 `healthz` / `admin` 均 **200**、`HEALTH=healthy`、
+> `READONLY=true`、卷挂载正确；随后 `down` 并清理目录 / 卷 / 网络，**无残留**。
+> 部署用假 token、不可达的本地 Cloud 地址、渠道全关：**未连真实云端、未发任何消息**。
+> ④ 提交身份与签名分层：助手提交 = `Notify Agent` + **不签名**；所有者提交 = `zlay0701` + 签名（Verified）。
+> `npm test` 仍 **85/85**，`dry-run` 只读，`.env` 未改动。详见 §12.9。
 > **v1.17 变更**：**接入 GitHub 公有仓库与 CI，落地「敏感信息零提交」约定**（纯文档 + 一个工作流文件，产品代码 `src/` 一行未动）。
 > ① 目标仓库 `https://github.com/zlay0701/mindwtr-notify`（public，main 分支）；用户明确要求
 > **以后所有改动都提交到这里，且绝不提交敏感信息**，已写入用户级与项目级长期记忆。
@@ -722,14 +734,30 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 本地假密钥均不等于任何真实值。真实 token / 密码 / SSH 连接串 / Webhook key / 收件邮箱
 **未出现在任何候选文件**。
 
-**当前阻塞（非代码缺陷）**：连接器的 GitHub App 调用 `POST /user/repos` 返回 403
-`Resource not accessible by integration`；`GET /repos/zlay0701/mindwtr-notify` 为 404
-（仓库不存在）；本机 `git credential` 中已存的凭据对 GitHub API 返回 401。
-因此需要用户在 GitHub 网页创建一个**空的公有仓库** `mindwtr-notify`（不要勾 README / LICENSE），
-之后即可用连接器批量推送、触发 CI，并从该仓库 clone 到远端做正式部署。
-在此之前可用 `git archive HEAD` 导出与仓库一致的白名单内容做等价验证。
+**当时的阻塞（已解决）**：连接器的 GitHub App 调用 `POST /user/repos` 返回 403
+`Resource not accessible by integration`；本机 `git credential` 中的凭据对 API 返回 401。
+用户在 GitHub 网页手动创建空仓库并首次 `git push` 后解决，后续见 §12.9。
 
 **未改动**：产品代码、BASE 规则、strict 基线、`.env`。`npm test` **85/85**，`dry-run` 只读。
+
+### 12.9 v1.18 仓库上线与 CI / 部署验证（2026-11-15）
+
+| 项 | 结果 |
+|---|---|
+| 远端 main | `63c382c`（4 个 commit，作者 `Notify Agent`、未签名） |
+| 受版本控制文件 | 54 个；无 `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite |
+| GitHub Actions `CI` | **completed / success**；3 个 job 全绿（单测 / 镜像与编排校验 / 敏感信息防呆），徽章 passing |
+| 远端 clone 验证 | `git clone` commit `63c382c`；`npm test` 85/85；两份编排 `config --quiet` 退出 0；`docker build` 成功 |
+| 远端 compose 部署 | `healthz` 200、`admin` 200、`HEALTH=healthy`、`READONLY=true`、卷 `-> /app/data`；随后 `down` 并清理目录 / 卷 / 网络 |
+| 副作用 | 假 token + 不可达 Cloud 地址 + 渠道全关：不连真实云端、不发消息；`.env` 未改动 |
+
+**提交身份分层（用户 2026-11-15 要求）**：助手提交用 `scripts/agent-git.sh`
+（`Notify Agent <notify-agent@users.noreply.github.com>`、`-c commit.gpgsign=false` 不签名）；
+所有者自己提交沿用仓库默认 `zlay0701` + `commit.gpgsign=true`（签名 / Verified）。
+脚本只对单次命令覆盖，不改 `.git/config`。
+
+**远端部署命令的可复制形态**见 `docs/deployment.md` §2.1 与 `docs/coolify.md`；
+本次验证用的脱敏 `.env` 与端口 override 只存在于临时目录，验证后已删除。
 
 ---
 
