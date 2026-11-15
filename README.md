@@ -20,6 +20,9 @@
   你自己的提交保持 `zlay0701 <18520556+zlay0701@users.noreply.github.com>`。
   仓库默认身份**仍是你的**，所以直接 `git commit` 就是你本人；助手通过
   `scripts/agent-git.sh commit -m "..."` 临时切换身份，不会改动 `.git/config`。
+- **签名也作为区分标记**：助手提交会带 `-c commit.gpgsign=false`（**不签名**，非交互环境也拿不到
+  pinentry 密码）；你自己的提交沿用仓库的 `commit.gpgsign=true`，是**签名 / Verified** 的。
+  也就是说在 GitHub 上：你的提交 = `zlay0701` + Verified，助手的提交 = `Notify Agent` + unverified。
 
 ## 文档导航
 

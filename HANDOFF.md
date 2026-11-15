@@ -549,8 +549,10 @@ NODE_USE_ENV_PROXY=1 npm run dry-run
 - **别只看 HTTP 2xx 就说「投递成功」**：企微 / 钉钉 / 飞书会回 `200 + errcode!=0`；
   v1.15 起 `postWebhook` 已做业务码校验，新增接收端 / 适配器时不要绕过它。
   排障先跑 `--test-webhook --log-level=debug` 看适配器名与 `errcode`，详见 `docs/webhook-payload.md` §10。
-- **提交身份要区分**：助手提交用 `scripts/agent-git.sh`（作者 `Notify Agent`），
-  所有者自己 `git commit` 仍是 `zlay0701`；不要图省事用 `git -c` 把助手提交写成所有者身份。
+- **提交身份要区分**：助手提交用 `scripts/agent-git.sh`（作者 `Notify Agent`、**不签名**），
+  所有者自己 `git commit` 仍是 `zlay0701` 并沿用 `commit.gpgsign=true`（签名 / Verified）；
+  不要图省事用 `git -c` 把助手提交写成所有者身份。
+  助手提交不签名的原因：签名需要 pinentry 输密码，非交互环境拿不到；同时「是否签名」正好是第二重区分标记。
 - **所有改动都要提交到 GitHub 公有仓库 `zlay0701/mindwtr-notify`（main），且不许提交敏感信息**：
   提交前用 `.env` 真实值做子串比对，白名单 `git add`；`.gitignore` 已忽略
   `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite，CI 的 `no-secrets` job 会二次防呆。
