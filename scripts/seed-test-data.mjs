@@ -6,7 +6,7 @@
  *   1. 产品代码 src/ 内仍严格只读 —— src/cloud/client.ts 的 GET 双白名单一个字都没改；
  *   2. 本脚本只在 MINDWTR_BASE_URL 指向**非生产**实例时才运行，启动时硬检查；
  *   3. 写操作只有两条固定路径：POST /v1/tasks（新建）、PATCH /v1/tasks/:id（滚动自己造的数据）；
- *      不碰 /complete、不 DELETE 任何东西、不写文件、不输出 token 与任务正文；
+ *      不 DELETE 任何东西、不写文件、不输出 token 与任务正文；
  *   4. 只读约束的完整记录见 spec.md §10 / §13，本脚本不改变那些结论。
  *
  * 目的：给空库补上带 dueDate / startTime / reviewAt 的任务，让 strict dry-run

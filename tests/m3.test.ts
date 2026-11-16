@@ -1,14 +1,12 @@
 /**
- * M3 测试：标签路由、三个平台适配器、双向完成的只读闸门
+ * M3 测试：标签路由、三个平台适配器。
  *
  * 所有网络请求都用注入的假 fetch，本文件不会触达任何真实服务。
- * 特别是 completeTask 的两组用例：默认必须「连请求都不发」。
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { completeTask, canWriteToCloud } from '../src/actions/complete.ts';
 import { loadConfig } from '../src/config.ts';
 import {
   buildPlatformRequest, deliverPlatformWebhook, dingtalkSign, feishuSign, renderPlatformText,
@@ -156,49 +154,4 @@ test('适配器投递复用 POST 重试，失败两次后第三次成功', async
   assert.equal(result.ok, true);
   assert.equal(result.attempts, 3);
   assert.ok(seen.every(item => item.endsWith('|POST')), '平台通道只发 POST 到外部机器人');
-});
-
-// ---------------------------------------------------------------------------
-// 双向完成：只读闸门（用户明确要求不能改云端数据）
-// ---------------------------------------------------------------------------
-
-test('默认配置下 completeTask 连 HTTP 请求都不发', async () => {
-  const config = testConfig();
-  assert.equal(canWriteToCloud(config), false);
-
-  const forbiddenFetch = (async () => {
-    throw new Error('只读模式下不应发出任何网络请求');
-  }) as unknown as typeof fetch;
-
-  const result = await completeTask(config, 'task-1', { fetchImpl: forbiddenFetch });
-  assert.equal(result.attempted, false);
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /只读模式/);
-});
-
-test('只打开一道开关仍然拒绝写', async () => {
-  const config = testConfig();
-  config.m3.actions.allowWrite = true; // completeEnabled 仍为 false
-  const result = await completeTask(config, 'task-1', {
-    fetchImpl: (async () => { throw new Error('不应发请求'); }) as unknown as typeof fetch,
-  });
-  assert.equal(result.attempted, false);
-});
-
-test('两道开关都打开时才会构造 POST（用 mock，不触达真实实例）', async () => {
-  const config = testConfig();
-  config.m3.actions.allowWrite = true;
-  config.m3.actions.completeEnabled = true;
-
-  let observed: { method?: string; url: string } | null = null;
-  const fakeFetch = (async (input: URL | string, init?: RequestInit) => {
-    observed = { method: init?.method, url: String(input) };
-    return new Response('{}', { status: 200 });
-  }) as unknown as typeof fetch;
-
-  const result = await completeTask(config, 'task-1', { fetchImpl: fakeFetch });
-  assert.equal(result.attempted, true);
-  assert.equal(result.ok, true);
-  assert.equal(observed?.method, 'POST');
-  assert.match(observed?.url ?? '', /\/v1\/tasks\/task-1\/complete$/);
 });

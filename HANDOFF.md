@@ -1,14 +1,14 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-16 14:40（v1.26：内网直连 + complete 端点两项实测完成）· 对应 `spec.md` **v1.26**
+> 生成时间：2026-11-13 · 最后整理：2026-11-16 15:20（v1.27：移除双向完成写能力，回归纯只读）· 对应 `spec.md` **v1.27**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
 > ⚠️ **当前环境（2026-11-15 核实）**：`.env` 的 `MINDWTR_BASE_URL` 指向**测试服务器**
 > `https://mindwtr-cloud.zlay.cc.cd`（生产是 `...zlay.dpdns.org`）。**两个实例都正常**，
-> 测试服务器 `/health` 经系统代理返回 200 `{"ok":true}`；`npm test` 恒 **92/92**（v1.25 起）；
-> 用 §7 的代理前缀跑 `dry-run`，2026-11-16 14:40 实测 **17 条任务 / 1 个项目、计划 6 条、到点 0 条、过期跳过 6 条**
-> （任务总数因 complete 实测造的一次性任务从 16 变 17，触发点基线未变；测试库会被客户端同步改写、到点数随造数时间衰减；
+> 测试服务器 `/health` 经系统代理返回 200 `{"ok":true}`；`npm test` 恒 **89/89**（v1.27 起，移除双向完成后由 92 降为 89）；
+> 用 §7 的代理前缀跑 `dry-run`，2026-11-16 实测 **约 16–17 条任务 / 1 个项目、计划 6 条、到点 0 条、过期跳过 6 条**
+> （任务总数随造数变化、触发点基线未变；测试库会被客户端同步改写、到点数随造数时间衰减；
 > 生产实例基线是 595 条 / 15 个项目 / 计划 0 条）。
 > ⚠️ **本机坑**：命令行 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量指向 `127.0.0.1:48020`，
 > 而浏览器 / .NET 用的系统代理是 `127.0.0.1:7897`；Node `fetch` 默认不读代理变量，
@@ -38,8 +38,9 @@
 需要规则细节时只查 spec.md 的对应章节，不要通读 50KB 全文；文件职责查 README.md。
 
 硬约束（长期生效，不必再问我）：
-1. 对 Mindwtr Cloud【生产实例】只能发 GET，且路径必须在白名单内；禁止 POST/PUT/PATCH/DELETE，
-   禁止对 /complete 等写端点做任何实测。token 只在本机 .env，不写日志、报告、代码或聊天输出。
+1. 对 Mindwtr Cloud 只能发 GET，且路径必须在白名单内；禁止 POST/PUT/PATCH/DELETE。
+   产品代码不含任何写端点调用——发送提醒后不调用接口把任务改为完成，Notify 不管理任务生命周期。
+   token 只在本机 .env，不写日志、报告、代码或聊天输出。
    已授权的例外：当前 .env 指向测试服务器，可用 npm run seed:test 造数据（脚本自带非生产地址硬检查）；
    产品代码 src/ 内仍严格只读。详见 HANDOFF §2。
 2. 所有代码方便人类阅读 + 必要中文注释：文件头说明职责，导出函数说明用途/参数/返回值，
@@ -49,7 +50,7 @@
 
 本次目标：<替换为 §1 目标表 / §5 清单里的一项>。
 
-开工前先跑 npm test 与 npm run dry-run 确认基线（npm test 应为 92/92；dry-run 取决于 .env 指向的实例：
+开工前先跑 npm test 与 npm run dry-run 确认基线（npm test 应为 89/89；dry-run 取决于 .env 指向的实例：
 测试服务器约 16 条任务 / 1 个项目 / 计划 6 条（测试库会被同步改写，以实测为准），到点数随造数时间衰减；生产实例 595 条任务 / 15 个项目 / 计划 0 条；
 全程只读）。数字对不上先读 HANDOFF §3 / §7 判断是不是数据或时间变化，别急着改代码。
 完成后按 HANDOFF.md §9 回写 spec.md、工作日志与本文件的进度/未完成清单。
@@ -68,7 +69,7 @@
 
 > 已完成：**A（v1.3）**、**C（v1.4）**、**带时间任务端到端验证（v1.5）**、**交付物整理（v1.6）**、
 > **B 真实渠道端到端联调（v1.7）**、**D VPS 部署联调（v1.8）**、**E 生产化补齐（v1.9）**。
-> **五个目标全部完成**；§5 清单里原本剩下的 `complete` 写端点实测与内网直连验证也已于 v1.26（2026-11-16）收尾，
+> **五个目标全部完成**；§5 清单 5 项均已完成（内网直连 v1.26 验证；`complete` 端点实测随后连同该能力于 v1.27 一并移除），
 > 现全清单无遗留代码项，见 §5 / §4 第 28 条。
 
 ---
@@ -77,8 +78,7 @@
 
 | 约束 | 内容 |
 |---|---|
-| **只读云端** | 对**生产实例** `https://mindwtr-cloud.zlay.dpdns.org` 只允许 `GET`，路径需在白名单（产品客户端 `src/cloud/client.ts` 为 `/health`、`/v1/tasks`、`/v1/tasks/:id`、`/v1/projects` 四条；M0 探针另含 `/openapi.json`、`/swagger.json`）。**运行时实际只发 `GET /v1/tasks`（按状态分页）与 `GET /v1/projects`（缓存 10 分钟）两类**；`/health` 与 `/v1/tasks/:id` 白名单允许但无调用点，完整清单见 `docs/cloud-api.md`。禁止任何写操作。`src/actions/complete.ts` 是唯一涉及写端点的代码，默认**永不触发**。**2026-11-14 显式例外**：用户切到测试服务器并授权造数，`scripts/seed-test-data.mjs` 只向测试实例发 `POST /v1/tasks` / `PATCH /v1/tasks/:id`；产品代码 `src/` 内严格只读，脚本启动硬检查生产地址即拒绝。**2026-11-16 另一次显式授权**（精确确认"仅测试实例"）：
-对一次性任务实测了 `/complete`（经真实 `completeTask()`，写开关仅进程内注入、未改 `.env`），结论"端点 200 但错误 ETag 也 200 ⇒ 不尊重 If-Match"；生产实例仍零写请求。见 §4 第 28 条。 |
+| **只读云端** | 对 Cloud 只允许 `GET`，路径需在白名单（产品客户端 `src/cloud/client.ts` 为 `/health`、`/v1/tasks`、`/v1/tasks/:id`、`/v1/projects` 四条；M0 探针另含 `/openapi.json`、`/swagger.json`）。**运行时实际只发 `GET /v1/tasks`（按状态分页）与 `GET /v1/projects`（缓存 10 分钟）两类**；`/health` 与 `/v1/tasks/:id` 白名单允许但无调用点，完整清单见 `docs/cloud-api.md`。**产品代码不含任何写端点调用：发送提醒后不改任务状态，Notify 不管理任务生命周期**（v1.27 已移除早期唯一的双向完成写闸门）。**2026-11-14 显式例外**：用户切到测试服务器并授权造数，`scripts/seed-test-data.mjs` 只向测试实例发 `POST /v1/tasks` / `PATCH /v1/tasks/:id`；产品代码 `src/` 内严格只读，脚本启动硬检查生产地址即拒绝。见 §4 第 28 条。 |
 | **凭据** | `MINDWTR_TOKEN` 只在本机 `.env`（32 字符，值从未写入任何日志/报告/聊天）。capture-only token 不可用（在 `/v1/tasks` 会 403）。`.gitignore` 已排除 `.env`。 |
 | **代码规范** | 人类可读优先、必要中文注释、规则函数标注编号 + 三态标记。这条是用户明确要求的长期默认，不用再提醒。 |
 | **基线不可污染** | `BASE-01…29`【一致】规则恒生效、不可关闭；新增触发点类扩展（EXT-16/17/18）默认 `enabled: false`；`strict_mode: true` 强制回到 100% 一致。EXT-19 后半的 M4 管理页 / 命名空间不产生触发点，故不属于需默认关闭的 A 类；但手动重发入口默认关闭且强制鉴权。 |
@@ -93,11 +93,11 @@
 | **M0** 实测探针 | ✅ 完成 | `docs/probe-result.md` 为权威实测结论 |
 | **M1** 一致核心 | ✅ 已实现（含官方比对夹具，验收通过） | 无遗留；比对中纠正 2 处与官方不一致（review 单一策略、due-repeat 单一策略） |
 | **M2** 摘要与渠道 | ✅ 已实现 | **真实渠道端到端联调（目标 B）+ VPS compose 部署联调（目标 D）2026-11-15 均已通过** |
-| **M3** 可选增强 | ✅ 已实现 | 标签路由 + 钉钉/企微/飞书适配器 + 双向完成只读闸门；`complete` 写端点**主动不实测** |
+| **M3** 可选增强 | ✅ 已实现 | 标签路由 + 钉钉/企微/飞书适配器（v1.27 移除双向完成写闸门，回归纯只读） |
 | **M4** 管理页 | ✅ 已实现（验收通过） | 只读管理页 + 三层命名空间隔离 + 受鉴权重发 + 审计；`spec.md` §14 全部勾选 |
 
-**基线数字**：`npm test` **92/92 通过**（含官方黄金比对夹具、M4、日志、Webhook 业务响应、项目回顾与时间格式用例），纯本地、不随所连实例变化。
-（v1.26 产品代码零改动，测试数仍 92/92；收尾 dry-run 为 17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条。）
+**基线数字**：`npm test` **89/89 通过**（含官方黄金比对夹具、M4、日志、Webhook 业务响应、项目回顾与时间格式用例），纯本地、不随所连实例变化。
+（v1.27 移除双向完成的 3 个用例，测试数由 92 降为 89；dry-run 约 16–17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条。）
 `npm run dry-run`（全程只读、未投递未写库）：
 - **生产实例**：595 条任务 / 15 个项目、strict 计划 0 条（数据全无时间字段）。
 - **当前测试实例**：2026-11-16 14:25 实测 **16 条任务 / 1 个项目、计划 6 条、到点 0 条、过期跳过 6 条**
@@ -183,7 +183,7 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
 
 **v1.16 Coolify 部署教程（2026-11-15 22:55）**：纯文档 + 一份编排文件，`src/` 一行未动。
 新增 `docs/coolify.md` 与 `compose.coolify.yaml`；后者把 `env_file` 换成 `${VAR}` 白名单、
-去掉 `container_name` / `ports`，并故意不注入两个云端写开关。
+去掉 `container_name` / `ports`，产品代码不含任何云端写端点调用。
 已在目标 VPS 只读核对 **Coolify 4.7.5 / Traefik 3.7**，并用真实 Docker Compose 验证编排语法
 与 `${MINDWTR_TOKEN:?}` 必填约束；**未实际创建 Coolify 资源或部署**。
 `npm test` 仍 85/85。详见 §4 第 19 条与 `spec.md` §12.7。
@@ -245,17 +245,18 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 
 **v1.25 可配置时间格式（2026-11-16 13:10）**：新增 `NOTIFY_TIME_FORMAT`（默认 `yyyy-MM-dd HH:mm:ss`），
 邮件与平台文本里的时间改成本地时间显示（`2026-11-16 23:00:00`），结构化 JSON 仍是 ISO。
-`npm test` **92/92**。详见 §4 第 27 条与 `spec.md` §12.16。
+`npm test` 当时 **92/92**（v1.27 起为 89/89）。详见 §4 第 27 条与 `spec.md` §12.16。
 
-**v1.26 两项历史遗留实测（2026-11-16 14:40）**：**产品代码零改动**，只补测并归档两项此前挂 `- [ ]` 的验证。
-① **内网直连**：当前 cloud 容器 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0` / 网络 `szj4zxoghn8jrdm0hghsqhu0`
+**v1.26 内网直连实测（2026-11-16 14:40）**：**产品代码零改动**，只补测此前挂 `- [ ]` 的内网直连验证。
+当前 cloud 容器 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0` / 网络 `szj4zxoghn8jrdm0hghsqhu0`
 （随机 ID 已变，旧 `rifyenhfmtws99c3pea0zu4d` 失效），在其 bridge 网络内起一次性容器 `GET /health` 返回
-`{"ok":true}`、退出码 0，内网可达；产品默认仍走公网，不改编排。
-② **`complete` 端点 + If-Match**：用户显式授权后仅对测试实例 3 条一次性 `[NotifyTest-Complete]` 任务发真实
-`POST /complete`，全 200「已完成」；**故意错误 ETag 仍 200 ⇒ 端点不尊重 If-Match**（与"官方只在 PATCH 写 If-Match"一致）。
-写开关仅进程内注入、未改 `.env`，临时探针在系统 Temp、跑完即删、不进 Git，生产实例自始至终零写请求；
-冲突评审记录见 `spec.md` §13 / §12.17。`npm test` **92/92**；收尾只读 dry-run 为 17 条任务 / 1 项目 /
-计划 6 条 / 到点 0 条 / 过期跳过 6 条（任务数因造数变化，触发点基线未变）。详见 §4 第 28 条。
+`{"ok":true}`、退出码 0，内网可达；产品默认仍走公网，不改编排。详见 §4 第 28 条。
+
+**v1.27 移除双向完成写能力（2026-11-16 15:20）**：用户明确要求"发送提醒后无需调用接口把任务改为完成，
+去掉所有相关内容和代码"。删除 `src/actions/complete.ts`（`completeTask` / `canWriteToCloud` / If-Match）、
+`src/config.ts` 的 `m3.actions` 段、`tests/m3.test.ts` 的 3 个用例、`NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`
+两个配置项（`.env.example` / `compose.coolify.yaml` / 全部文档），M3 缩减为标签 + 适配器。
+产品代码**不含任何写端点调用**，Notify 不管理任务生命周期。`npm test` 由 92 → **89/89**。详见 §4 第 29 条。
 
 ---
 
@@ -414,7 +415,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
       附一份**不带行尾注释**的可粘贴环境变量清单（项目 `.env` 解析器不处理行尾注释）。
     - 新增 `compose.coolify.yaml`：`${VAR}` 白名单（凭据只在 Coolify 面板）、`${MINDWTR_TOKEN:?}`
       必填、无 `env_file` / `container_name` / `ports`；保留 `read_only` / `tmpfs` / 卷 /
-      `healthcheck` / `replicas: 1`；**故意不注入** `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`。
+      `healthcheck` / `replicas: 1`；产品代码不含任何云端写端点调用。
     - 远端真实 Compose 验证：缺 token → `config --quiet` 退出 1 并报 required variable；
       注入假 token → 退出 0，渲染结果保留 `read_only=true`、`tmpfs`、卷、`replicas:1`、`healthcheck`。
     - ⚠️ Coolify 版**没发布宿主端口**，宿主机 `curl 127.0.0.1:8788` 不通；
@@ -528,21 +529,24 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
       钉钉/企微/飞书文本；`generic` 的 JSON **仍是 ISO 8601**，避免接收端重新踩时区坑。
     - 仅日期字段不补时刻（`2026-11-16` 保持原样）；解析不了的字符串原样输出。
     - 实测：`2026-11-16T15:00:00Z` → `截止：2026-11-16 23:00:00`；`yyyy/MM/dd HH:mm` → `2026/11/16 23:00`。
-    - `tests/format.test.ts` 新增 4 个用例，`npm test` **92/92**；文档见 `docs/configuration.md` §4.2.2。
+    - `tests/format.test.ts` 新增 4 个用例，当时 `npm test` **92/92**（v1.27 起 89/89）；文档见 `docs/configuration.md` §4.2.2。
 
-28. **v1.26 内网直连 + complete 端点实测（2026-11-16，产品代码零改动）**：
-    - **内网直连**：VPS 当前 cloud 容器 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0`、bridge 网络
+28. **v1.26 内网直连实测（2026-11-16，产品代码零改动）**：
+    - VPS 当前 cloud 容器 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0`、bridge 网络
       `szj4zxoghn8jrdm0hghsqhu0`（非 external、scope local）、内外端口 8787。在该网络起一次性 busybox
       容器 `wget -q -O - http://mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0:8787/health` → `{"ok":true}`、退出码 0。
       旧记录网络/容器名 `rifyenhfmtws99c3pea0zu4d` 已失效（重建所致），**内网地址只能现场查、不可写死**；
       产品部署仍默认走公网 HTTPS，本次不改编排/`.env`。
-    - **complete 端点**：用户显式授权后，仅测试实例 `...cc.cd`，3 条一次性 `[NotifyTest-Complete]` 任务
-      （POST 造数用 `{title, props:{status:'next'}}`，id 可能包在 `.task` 里）。调用真实 `completeTask()`，
-      两道开关经 `options.env` 仅进程内注入、未改 `.env`。结果：不带 If-Match HTTP 200、带真实弱 ETag HTTP 200、
-      **带故意错误 ETag 仍 HTTP 200 ⇒ 端点不支持 If-Match 乐观锁**（无 412，与"官方只在 PATCH 写 If-Match"一致）。
-      故将来即便启用本能力也无法靠 ETag 防并发完成冲突，须业务侧保证幂等；开关仍默认关。
-    - 安全：生产实例自始至终零写请求；临时探针在系统 Temp、跑完即删、不进 Git；仓库写能力面未扩大。
-    - 收尾：`npm test` 92/92；只读 dry-run 17 条任务 / 1 项目 / 计划 6 / 到点 0 / 过期跳过 6（任务数因造数变化）。
+
+29. **v1.27 移除双向完成写能力（2026-11-16）**：
+    - 用户明确要求"发送提醒后无需调用接口将任务状态改为完成，去掉所有相关内容和代码"。
+    - 删除：`src/actions/complete.ts`（整个文件，`src/actions/` 目录随之消失）、`src/config.ts` 的
+      `m3.actions` 类型定义与 `loadConfig` 赋值、`tests/m3.test.ts` 的 import 与 3 个用例、
+      `.env.example` / `compose.coolify.yaml` 的 `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`。
+    - 文档同步：README、docs（cloud-api / configuration / coolify / deployment / admin-guide）、spec（头 / §0.2 /
+      §10 / §12.17 / §13 / §16）、HANDOFF 各处的相关表述全部清理；`docs/cloud-api.md` 把 `/complete` 标为**不实现**。
+    - **产品代码现不含任何写端点调用或写开关**；M3 仅剩标签路由 + 平台适配器；Notify 不管理任务生命周期。
+    - `npm test` **89/89**（原 92，去掉 3 个 complete 用例）；dry-run 只读基线不变。
 
 ---
 
@@ -553,13 +557,13 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 | 1 | ~~compose / Dockerfile 生产化补齐（目标 E）~~ | ✅ **2026-11-15 已完成（v1.9）**：`healthcheck` / `read_only: true` / `tmpfs` 落地、生产镜像剔除 `scripts/`、新增 `.dockerignore`，远端真实 Docker 验证通过，见 §4 第 15 条与 `spec.md` §12.3 | 无（部署前按 `compose.yaml` 头部清单把 `MINDWTR_BASE_URL` 切回生产地址即可） |
 | 2 | ~~真实 SMTP / Webhook 实发（目标 B）~~ | ✅ **2026-11-15 已完成**：四项验收全过，见 §4 第 13 条与 `spec.md` §12.1 | 无 |
 | 3 | ~~VPS `docker compose up` 联调（目标 D）~~ | ✅ **2026-11-15 已完成**：四项验收全过，见 §4 第 14 条与 `spec.md` §12.2 | 无 |
-| 4 | ~~`complete` 端点实测与 If-Match 验证~~ | ✅ **2026-11-16 已完成（v1.26）**：用户显式授权后仅测试实例、仅一次性任务实测；全 200，**错误 ETag 仍 200 ⇒ 端点不尊重 If-Match**；冲突评审见 `spec.md` §13 / §12.17，生产实例零写请求 | 无（若要重新实测，重跑一次性探针即可；产品代码无写路径） |
+| 4 | ~~`complete` 端点实测与 If-Match 验证~~ | ✅ **已了结**：v1.26 曾实测（端点不支持 If-Match）；v1.27 按用户要求**连同双向完成能力一并移除**，相关代码/配置/测试/文档全部删除，回归纯只读，见 §4 第 29 条 | 无（能力已移除，不再有此项） |
 | 5 | ~~内网直连连通性验证（可选）~~ | ✅ **2026-11-16 已完成（v1.26）**：当前容器/网络随机名现场查得，`GET /health` 返回 200、退出码 0；`spec.md` §10 两处已打勾。产品默认仍走公网 HTTPS，不改编排 | 无（内网地址随机，需用现场查到的名字；默认公网无需此项） |
 
 > **已完成**：目标 A 黄金比对夹具（v1.3）、目标 C / M4（v1.4）、带时间任务端到端验证（v1.5）、交付物整理（v1.6）、
 > **B 真实渠道端到端联调（v1.7）**、**D VPS 部署联调（v1.8）**、**E 生产化补齐（v1.9）**、远程 Linux 构建链路打通（均为 2026-11-15）。
-> 表格 5 项**全部完成**：第 4 项（`complete` 端点实测）与第 5 项（内网直连）已于 2026-11-16 v1.26 收尾，详见 §4 第 28 条。
-> `npm test` 恒 **92/92**；最新 `dry-run` 为 **17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条**（2026-11-16 14:40 实测，测试库会被同步改写）。
+> 表格 5 项**全部完成**：第 4 项（`complete` 端点实测）已于 v1.27 连同该能力移除而了结，第 5 项（内网直连）v1.26 收尾，详见 §4 第 28/29 条。
+> `npm test` 恒 **89/89**（v1.27 起）；最新 `dry-run` 为 **约 16–17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条**（2026-11-16 实测，测试库会被同步改写）。
 > 本机若见 0 条 / `fetch failed` 先查代理，别误判服务端，见头部与 §4 第 13 条。
 > 签名、重试、去重、补发、strict 隔离与命名空间隔离逻辑均已用本地单测 + 测试实例端到端覆盖。
 
@@ -575,7 +579,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 | `docs/cloud-api.md` | v1.12：Mindwtr Cloud API 调用清单（运行时 / 白名单允许但不用 / 探针与造数脚本 / 主动禁止，含参数、频率、认证与响应要点） |
 | `docs/coolify.md` | v1.16 起：Coolify 部署教程；v1.19 按「仓库已上线」修订前置条件并新增 §0 三步快速路径 |
 | `docs/rules.md` | v1.23：提醒规则手册（五道判定关、全部触发类型、策略语义、时间与窗口、标签路由、排查表、已知边界） |
-| `compose.coolify.yaml` | v1.16：Coolify 专用编排（`${VAR}` 注入、无 env_file/container_name/ports，只读写开关故意不暴露）；v1.20 加 `TZ: ${TZ:-Asia/Shanghai}` |
+| `compose.coolify.yaml` | v1.16：Coolify 专用编排（`${VAR}` 注入、无 env_file/container_name/ports，产品代码不含写端点）；v1.20 加 `TZ: ${TZ:-Asia/Shanghai}` |
 | `docs/webhook-payload.md` | v1.14：**出站** Webhook 数据格式清单（通用 `generic` 完整字段表、14 种 event 与 JSON 样例、验签头、钉钉/企微/飞书 body、重试与幂等、隐私边界） |
 | `docs/deployment.md` | v1.11：Docker Compose 部署与运维指南（§1.1 附接口摘要，含环境变量两条通道、升级回滚备份、故障排查、安全边界） |
 | `docs/configuration.md` | v1.11：全量配置参考（优先级 / 启动校验 / 三态标记 / Webhook 验签协议 / 典型样例） |
@@ -599,7 +603,6 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 | `src/state/store.ts` | SQLite WAL、`sent_log`、渠道级去重、`bun:sqlite` / `node:sqlite` 适配；M4 加 `namespace` 列（旧库无损迁移）、记录查询 / 计数 / 重试 / 审计接口 |
 | `src/admin.ts` | M4：只读管理页 HTML + 6 个 JSON 接口、恒定时间鉴权、脱敏、受双开关保护的 `POST /admin/api/retry` |
 | `src/dispatch/*` | 消息渲染与隐私裁剪、SMTP、HMAC 签名 Webhook+重试、钉钉/企微/飞书适配器、渠道级分发器 |
-| `src/actions/complete.ts` | 【官方无】双向完成只读闸门（默认永不发写请求） |
 | `src/scheduler.ts` | 轮询、5 分钟补发、失败告警与恢复；`upcoming()` 只读计划缓存供管理页展示 |
 | `src/healthz.ts` / `src/cli.ts` | 健康端点（不含任务内容与令牌）+ `/admin` 路由委托与共享鉴权 / 全部 CLI 入口 |
 | `tests/*.test.ts` | 9 个文件、92 个用例（M4 11 + v1.13 日志 12 + v1.15 业务响应 11 + v1.24 项目回顾 2 + v1.25 格式 4） |
@@ -625,7 +628,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 ## 7. 基线验收命令（每个新窗口开工先跑）
 
 ```bash
-npm test                # 期望 92/92 通过（含官方比对夹具 + M4 11 个 + 日志 12 个 + 业务响应 11 个 + 项目回顾 2 个 + 时间格式 4 个），纯本地、与实例无关
+npm test                # 期望 89/89 通过（含官方比对夹具 + M4 11 个 + 日志 12 个 + 业务响应 11 个 + 项目回顾 2 个 + 时间格式 4 个），纯本地、与实例无关
 npm run dry-run         # 测试实例：约 16–17 条任务 / 1 个项目 / 计划 6 条（以实测为准）；到点数随造数时间衰减
                         # 生产实例：595 条任务 / 15 个项目 / 计划 0 条。均应提示未投递未写库
 node src/cli.ts --dry-run --strict --log-level=debug  # 排障：打印完整诊断链路，不用改 .env

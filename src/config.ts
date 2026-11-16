@@ -147,11 +147,6 @@ export interface NotifyConfig {
       kinds: WebhookAdapter[];
       secrets: string[];
     };
-    /** 双向操作总闸。默认 false，此时不会向 Cloud API 发出任何写请求。 */
-    actions: {
-      allowWrite: boolean;
-      completeEnabled: boolean;
-    };
   };
 }
 
@@ -355,11 +350,6 @@ export function loadConfig(options: {
             : 'generic';
         }) as WebhookAdapter[],
         secrets: list(env.NOTIFY_WEBHOOK_SECRETS),
-      },
-      actions: {
-        // 两道开关必须同时显式打开，才会允许调用写端点。默认永不写云端数据。
-        allowWrite: bool(env.NOTIFY_ALLOW_WRITE, false),
-        completeEnabled: bool(env.NOTIFY_COMPLETE_ACTION, false),
       },
     },
   };

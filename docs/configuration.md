@@ -227,11 +227,8 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 | `NOTIFY_TAG_WEBHOOK`      | `notify-webhook` | 命中则只发 Webhook                                                     | EXT-19         |
 | `NOTIFY_WEBHOOK_ADAPTERS` | 空                | 与 `WEBHOOK_URLS` 一一对应：`generic` / `dingtalk` / `wecom` / `feishu` | EXT-19         |
 | `NOTIFY_WEBHOOK_SECRETS`  | 空                | 平台适配器各自的加签密钥，用逗号分隔，可留空位                                           | EXT-19         |
-| `NOTIFY_ALLOW_WRITE`      | `false`          | 双向完成的第一道开关                                                        | EXT-19         |
-| `NOTIFY_COMPLETE_ACTION`  | `false`          | 双向完成的第二道开关                                                        | EXT-19         |
 
-> ⚠️ 后两项必须**同时**为 `true` 才可能构造写请求，且 CLI / Scheduler / Dispatcher 都不调用它，  
-> **默认永不向 Cloud 发写请求**。启用前需按 `spec.md` §13 做冲突评审与单独授权；本项目按只读约束主动不启用。
+> 产品代码不含任何写端点调用：发送提醒后不会回头改动任务状态，Notify 不管理任务生命周期。
 
 ### 4.9 M4 管理页与命名空间
 
@@ -368,7 +365,7 @@ NOTIFY_CONFIG=notify-namespaces.json
 4. Webhook URL 可能含密钥：状态库里只记 `webhook:N` 这样的短渠道名；页面展示的错误文本也会脱敏 URL 与长串标识。
 5. 管理 token 由浏览器临时输入，放在请求头（`X-Admin-Token` 或 `Authorization: Bearer`），  
    不进 URL、不写 localStorage、不进服务端日志。
-6. 对生产实例只有白名单内的 `GET`；`NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION` 保持 `false`。
+6. 对 Cloud 只有白名单内的 `GET`；产品代码不含任何写端点调用。
 7. **日志也要脱敏**：`src/errors.ts` 的 `redactUrls` 是状态库与日志共用的脱敏入口，  
    新增日志一律走 `src/logger.ts`，不要直接 `console.log` 带 URL / 异常原文的内容。
 

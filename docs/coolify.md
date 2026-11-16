@@ -83,9 +83,8 @@ Deploy Key / GitHub App，并把 §4 步骤 1 的仓库地址换成你自己的�
 | 域名 | 无 | 可选用 Coolify Domains（带 `:8788`） | 需要远程管理页时才开，见 §5 |
 | 其余 | — | **完全一致** | `read_only: true` + `tmpfs /tmp`、命名卷、`healthcheck`、`replicas: 1` 全部保留 |
 
-另外 `compose.coolify.yaml` **故意没有**注入 `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`：
-这两道开关控制对云端写端点，硬约束要求对生产实例只能发 `GET`。不注入，代码就用内置 `false`，
-面板里也无法误开。`NOTIFY_STATE_PATH` / `HEALTHZ_PORT` 也写死，避免状态库被改到只读根文件系统上。
+产品代码对 Cloud 只读（仅白名单内 `GET`），不含任何写端点调用——发送提醒后不改任务状态。
+`NOTIFY_STATE_PATH` / `HEALTHZ_PORT` 写死，避免状态库被改到只读根文件系统上。
 
 > 该文件只给 Coolify 用。本机跑 `docker compose -f compose.coolify.yaml config` 会因 `${...}`
 > 未设置而报错，属正常；已在远端用真实 Docker Compose 验证过语法与插值（缺 token 时 `:?`
@@ -271,9 +270,9 @@ bun run src/cli.ts --test-webhook --log-level=debug
 
 ## 8. 安全边界（改配置时不要削弱）
 
-1. **对生产 Cloud 只读**：只允许白名单内的 `GET`，产品运行时实际只发 `GET /v1/tasks` 与
-   `GET /v1/projects`，见 [cloud-api.md](cloud-api.md)。`NOTIFY_ALLOW_WRITE` /
-   `NOTIFY_COMPLETE_ACTION` 故意没进 Coolify 编排，不要自行加回去。
+1. **对 Cloud 只读**：只允许白名单内的 `GET`，产品运行时实际只发 `GET /v1/tasks` 与
+   `GET /v1/projects`，见 [cloud-api.md](cloud-api.md)。产品代码不含写端点调用，
+   发送提醒后不改任务状态。
 2. **凭据只在 Coolify 面板**：`.env` 不进仓库、不进镜像（`.dockerignore` 已排除），
    不贴聊天 / 工单 / 日志。企微 Webhook URL 里的 `key` 等同密码。
 3. **单实例**：无 leader election，多副本或预览环境会重复投递。

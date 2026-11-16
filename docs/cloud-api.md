@@ -17,12 +17,12 @@
 | **服务运行时**（`src/`，常驻轮询） | ✅ 只发 2 类 | `GET /v1/tasks`（按状态分页）、`GET /v1/projects`（缓存 10 分钟） |
 | 产品客户端白名单里**允许但未调用** | ❌ 运行时不发 | `GET /health`、`GET /v1/tasks/:id` |
 | 开发期 / 运维脚本 | ✅ 会发，但不是服务行为 | 探针的全量只读探测、测试实例造数、远端探活 |
-| **主动禁止 / 不实现** | ❌ 永不发 | 对生产实例的 POST / PUT / PATCH / DELETE、`/complete` 等写端点；`/capture` 不调用 |
+| **主动禁止 / 不实现** | ❌ 永不发 | 对 Cloud 的任何 POST / PUT / PATCH / DELETE、写端点；`/capture` 不调用 |
 
-**硬约束**：对 Mindwtr Cloud【生产实例】只允许 `GET`，且路径必须在白名单内；
-禁止任何写操作，禁止对 `/complete` 等写端点做实测。已授权的唯一例外是
-`scripts/seed-test-data.mjs` 在**测试实例**造数（脚本启动硬拒绝生产地址），
-产品代码 `src/` 内仍严格只读。
+**硬约束**：产品代码对 Mindwtr Cloud 只允许白名单内的 `GET`，**不含任何写端点调用**——
+发送提醒后不会回头改动任务状态，Notify 不管理任务生命周期。
+已授权的唯一例外是 `scripts/seed-test-data.mjs` 在**测试实例**造数（脚本启动硬拒绝生产地址），
+产品代码 `src/` 内严格只读。
 
 ---
 
@@ -127,7 +127,7 @@ scheduler.runOnce()
 | `POST` | `/v1/tasks` | `{"title":"…","props":{"status":"next","dueDate":…,"startTime":…,"reviewAt":…}}` → 201 |
 
 约束：脚本启动就硬检查 `MINDWTR_BASE_URL`，**指向生产地址直接拒绝**；
-不碰 `/complete`、不 `DELETE`、不写文件、不输出 token 与任务正文。
+不 `DELETE`、不写文件、不输出 token 与任务正文。
 时间字段必须是带 `T` 时间的 ISO 字符串（BASE-21）；仅日期 `YYYY-MM-DD` 不产生任务级触发点（BASE-22）。
 
 ### 3.3 部署联调脚本 `scripts/deploy-test.py`
@@ -147,15 +147,15 @@ scheduler.runOnce()
 
 | 方法 · 路径 | 状态 | 原因 |
 |---|---|---|
-| `POST /v1/tasks/:id/complete` | **代码存在，但默认永不发** | `src/actions/complete.ts` 需同时打开 `NOTIFY_ALLOW_WRITE=true` 与 `NOTIFY_COMPLETE_ACTION=true` 才构造请求，且 CLI / Scheduler / Dispatcher **都没有调用点**；按只读约束主动不做实测 |
+| `POST /v1/tasks/:id/complete` | **不实现** | 发送提醒后不改任务状态；产品代码已移除该写能力，无任何相关代码或开关 |
 | `POST /v1/capture` | 不调用 | 只创建 Inbox 文本任务、不带时间字段；capture-only token 只能调它，本项目需要完整 bearer token |
 | 对生产实例的 `POST` / `PUT` / `PATCH` / `DELETE` | **禁止** | 用户硬约束；产品客户端的 `get()` 只发 GET，双白名单在发请求前拦截 |
 | `PUT` / `DELETE /v1/tasks/:id` | 未实现、未调用 | — |
 | `/openapi.json` / `/swagger.json` | 运行时不调用 | 只有探针试过且 401 |
-| 内网直连 `http://<cloud 容器名>:8787` | 可选、未实测 | `compose.yaml` 里保持注释，默认走公网 HTTPS；容器随机名重建后会变 |
+| 内网直连 `http://<cloud 容器名>:8787` | 可选、已验证连通 | 2026-11-16 实测 `GET /health` 返回 200；产品仍默认走公网 HTTPS，容器随机名重建后会变 |
 
-> 关于 `If-Match`：官方只在 **PATCH** 上写明支持乐观锁；`/complete` 是否支持未经确认。
-> 本服务纯只读，用不上 `If-Match`（详情返回的弱 ETag 也只是 M0 的实测记录）。
+> 关于 `If-Match`：官方只在 **PATCH** 上写明支持乐观锁。本服务纯只读且不实现写端点，
+> 用不上 `If-Match`（详情返回的弱 ETag 只是 M0 的实测记录）。
 
 ---
 

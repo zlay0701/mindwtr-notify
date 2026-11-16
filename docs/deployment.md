@@ -35,7 +35,7 @@ Notify 是**旁路只读服务**：定时用 `GET` 从自托管的 `mindwtr-clou
 
 `GET /health` 与 `GET /v1/tasks/:id` 虽然在只读白名单里，但**运行时没有调用点**；
 探针、造数脚本、部署联调脚本各自另有请求，也都不属于产品服务行为；
-对生产实例的 POST / PUT / PATCH / DELETE 与 `/complete` 一律禁止。
+产品代码不含任何写端点调用；对 Cloud 的 POST / PUT / PATCH / DELETE 一律禁止。
 **完整清单（调用链、参数、请求量估算、认证与响应要点、哪些只是「允许但不用」）见
 [Cloud API 调用清单](cloud-api.md)。**
 
@@ -284,7 +284,7 @@ docker compose up -d
 2. 由于 `env_file` 全量注入，部署 `.env` 只写服务需要的键。
 3. 只映射 `127.0.0.1`；远程看管理页用 SSH 端口转发（见操作手册 §1），**不要**改成 `0.0.0.0`。
 4. `read_only: true` + `tmpfs /tmp` 保持开启；唯一可写位置是卷 `/app/data`。
-5. `replicas: 1` 恒定；产品代码对生产实例只读 GET 白名单，`/complete` 等写端点默认永不触发。
+5. `replicas: 1` 恒定；产品代码对 Cloud 只读 GET 白名单，不含任何写端点调用。
 6. 校验配置只用 `config --quiet`。
 
 ---

@@ -3,18 +3,20 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.26 · 日期：2026-11-16
+> 版本：v1.27 · 日期：2026-11-16
+> **v1.27 变更**：**移除「双向完成」写能力，Notify 回归纯只读定位**（用户明确要求：发送提醒后**不调用任何接口把任务改为完成**，去掉所有相关代码与内容）。
+> ① 删除 `src/actions/complete.ts`（含 `completeTask` / `canWriteToCloud` 与 If-Match 逻辑）、
+> `src/config.ts` 的 `m3.actions` 配置段、`tests/m3.test.ts` 的 3 个相关用例；`npm test` 由 92 → **89/89**。
+> ② 删除配置项 `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`（`.env.example` / `compose.coolify.yaml` / 各文档），
+> 产品代码**不再有任何写端点调用或写开关**；`src/actions/` 目录随之消失。
+> ③ M3 由「标签 / 适配器 / 双向完成」缩减为「标签 / 适配器」；EXT-19 去掉双向完成候选；
+> spec §12.17 保留内网直连结论、删除 complete 实测段落；云 API 清单把 `/complete` 标为**不实现**。
+> ④ 只读承诺更清晰：发送提醒后不改任务状态，Notify 不管理任务生命周期。
 > **v1.26 变更**：**完成两项历史遗留的只读/写实测验证，产品代码零改动**。
 > ① **内网直连连通性验证通过**（§10 / §12.17）：在当前 cloud 容器所在 bridge 网络
 > `szj4zxoghn8jrdm0hghsqhu0` 内起一次性容器发 `GET /health`，返回 `{"ok":true}`（退出码 0），
 > 证明 `http://mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0:8787` 内网可达（容器随机名与旧记录不同，再次印证重建后会变）。
-> ② **`complete` 端点实测通过、If-Match 验证有结论**（§13 / §12.17）：用户显式授权后，仅对测试实例
-> `https://mindwtr-cloud.zlay.cc.cd` 的 3 条一次性 `[NotifyTest-Complete]` 任务发真实
-> `POST /v1/tasks/:id/complete`，均 200「已完成」；关键对照——**带一个故意错误的 ETag 仍返回 200**，
-> 说明该端点**不尊重 If-Match 乐观锁**（与「官方文档只在 PATCH 上写 If-Match」一致）。
-> 写开关仅本进程注入、未改 `.env`；生产实例自始至终只收 GET；临时探针在系统 Temp、不进 Git。
-> `npm test` 仍 **92/92**；收尾只读 dry-run 为 17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条
-> （任务数因造数变化，触发点基线未变）。
+> ② 双向完成写端点的实测记录已于 v1.27 随该能力移除而删除（结论：端点不支持 If-Match）；生产实例自始至终只收 GET。
 > **v1.25 变更**：**消息里的时间改为可配置的本地时间格式（EXT-21【官方无】）**（改 5 个源文件 + 1 个测试文件）。
 > 在此之前，邮件正文与钉钉/企微/飞书文本里直接输出原始 ISO（`2026-11-16T04:38:26.282Z`），
 > 既是 UTC 又带 `T`/`Z`，日常阅读很别扭。
@@ -147,7 +149,7 @@
 > → 升级回滚备份 → 常见坑 → 安全边界 → 与原生 Compose 差异速查」组织。
 > 新增 `compose.coolify.yaml`：把 `env_file: - .env` 换成 `${VAR}` 显式白名单（凭据只在 Coolify
 > 面板）、去掉 `container_name` 与 `ports`，保留 `read_only` / `tmpfs` / 卷 / `healthcheck` /
-> `replicas: 1`；**故意不注入** `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`（只读硬约束）。
+> `replicas: 1`；产品代码不含任何云端写端点调用（只读硬约束）。
 > 已在 **Coolify 4.7.5 / Traefik v3.7** 环境做只读核对（版本、网络、8788 空闲），
 > 并在远端用真实 Docker Compose 验证编排：缺 `MINDWTR_TOKEN` 时 `${VAR:?}` 阻止部署（退出 1），
 > 注入假值后 `config --quiet` 退出 0，关键结构全部保留。**未实际创建 Coolify 资源或部署。**
@@ -201,7 +203,7 @@
 > 四层列出全部接口。核实结论：运行时**只发 `GET /v1/tasks`（按状态分页）与 `GET /v1/projects`（缓存 10 分钟）**；
 > `GET /health` 与 `GET /v1/tasks/:id` 虽在白名单但无调用点（列表字段比详情更全，不做两段式补查）。
 > 同时厘清产品客户端白名单（4 条）与 M0 探针白名单（6 条）的差异，记录请求量估算、认证与响应要点、
-> 测试实例造数脚本的授权例外，以及按只读约束主动不做的写端点。
+> 测试实例造数脚本的授权例外，以及产品代码不调用任何写端点。
 > `deployment.md` 新增 §1.1 接口摘要，`configuration.md` / `admin-guide.md` / `README.md` 文档导航同步；
 > 三份运维文档头部版本号统一到 v1.12（上次升版漏同步）。`npm test` 仍 **62/62**。
 > **v1.11 变更**：**运维文档交付**（纯文档，不改代码与规则）。新增三份中文文档：
@@ -255,12 +257,12 @@
 > 过期跳过 4 条；生产实例 595 条任务 / 15 个项目、计划 0 条）；`HANDOFF.md` 重排未完成清单并新增纯本地目标 E
 > （compose / Dockerfile 生产化补齐），补齐文件地图、当前环境提示与常见坑；修正 §5 中 `read_only: true`
 > 「已落地」与 `compose.yaml` 不符的表述。`npm test` 仍 62/62、`npm run dry-run` 全程只读。
-> **v1.5 变更**：**带时间任务的端到端验证完成**（用户把 `MINDWTR_BASE_URL` 切到测试实例并授权造数）。新增 `scripts/seed-test-data.mjs`（非生产地址硬检查、按标题幂等、只发 `POST /v1/tasks` 与 `PATCH /v1/tasks/:id`）；测试实例造了 5 条带 `dueDate` / `startTime` / `reviewAt` / 仅日期的任务，strict dry-run 从恒为 0 条变为 **计划 4 条、到点 1 条**，BASE-22 仅日期不触发在真实数据上得到验证；用本地假 Webhook 响应跑通「投递 → 渠道级成败 → 状态库去重 → 管理页四视图 → 受鉴权重发 → 审计」全链路（第 2 轮成功渠道重复跳过、失败渠道保留重试）。`npm test` 仍 **62/62**。**只读边界不变**：产品代码 `src/` 内严格只读，写操作全部发生在测试实例且由独立造数脚本执行，未触碰生产实例与 `/complete`。
+> **v1.5 变更**：**带时间任务的端到端验证完成**（用户把 `MINDWTR_BASE_URL` 切到测试实例并授权造数）。新增 `scripts/seed-test-data.mjs`（非生产地址硬检查、按标题幂等、只发 `POST /v1/tasks` 与 `PATCH /v1/tasks/:id`）；测试实例造了 5 条带 `dueDate` / `startTime` / `reviewAt` / 仅日期的任务，strict dry-run 从恒为 0 条变为 **计划 4 条、到点 1 条**，BASE-22 仅日期不触发在真实数据上得到验证；用本地假 Webhook 响应跑通「投递 → 渠道级成败 → 状态库去重 → 管理页四视图 → 受鉴权重发 → 审计」全链路（第 2 轮成功渠道重复跳过、失败渠道保留重试）。`npm test` 仍 **62/62**。**只读边界不变**：产品代码 `src/` 内严格只读，写操作全部发生在测试实例且由独立造数脚本执行，未触碰生产实例。
 > **v1.4 变更**：**M4 代码实现完成** —— 新增只读管理页（`src/admin.ts`：已发记录 / 失败重试 / 渠道状态 / 下一批待触发提醒 / 审计日志，`GET /admin` 与 `/healthz` 共用端口）、多命名空间隔离（`src/state/namespace.ts`：配置 `namespaces.<ns>` 分段、状态库按 namespace 分文件、去重键与 meta 键加前缀 + `sent_log.namespace` 列过滤）、受鉴权手动重发入口与审计日志（`src/state/store.ts` 新增列表 / 计数 / 重试 / 审计接口）。M4 属 `EXT-19`【官方无】后半，**不产生任何触发点**，strict 计划集合与基线 100% 一致；旧状态库首次运行自动补 `namespace` 列并把历史记录归入 `default`，不会重发历史提醒。测试增至 **62 个且全过**（M4 +11）；`npm run dry-run` 复验仍为 595 条任务 / 15 个项目、计划 0 条、全程只读。
 > **v1.3 变更**：**M1 退出门槛补齐** —— 新增官方 `schedule-utils.ts` 黄金数据集合比对夹具：`tests/official-schedule.ts`（逐字移植官方 `getTaskReminderPlan` 及其依赖 date / due-reminder-lead / task-status / task-reminder-policy 作为基准）+ `tests/official-golden.test.ts`（28 条覆盖易错点的黄金数据、3 个用例），按 `(task_id, kind, scheduledAt)` 集合比对，**strict 模式差集为空**，M1 现标记验收通过。比对中纠正 2 处与官方不一致：`shouldSendReminderKind` 在单一 `start`/`due` 策略下 `review` 仍应触发、单一 `due` 策略下不排 `due-repeat`（`src/rules/reminder-plan.ts`）。测试增至 **51 个且全过**（M1 +5）；dry-run 基线不变（595 条任务 / 15 个项目，全程只读）。
 > **v1.2 变更**：补齐交付物整理包 —— 新增 `HANDOFF.md`（新对话窗口交接包，含可直接复制的开工提示词、已确认实测事实、未完成清单与省积分工作法）、`README.md`（项目速览与文件地图）、`.gitignore`（排除 `.env` 凭据与运行期数据）。**代码与规则未改动**，46/46 测试与 dry-run 基线保持不变。
 >
-> **v1.1 变更**：**M3 代码实现完成**。新增标签路由（`src/rules/tag-policy.ts`）、钉钉/企业微信/飞书适配器（`src/dispatch/adapters.ts`）、双向完成只读闸门（`src/actions/complete.ts`）；测试增至 **46 个且全过**（M3 新增 12 个）；真实实例 `npm run dry-run` 复验仍为 595 条任务 / 15 个项目、全程只读。双向完成**默认永不发写请求**，且未做 `complete` 端点实测（受只读约束）。
+> **v1.1 变更**：**M3 代码实现完成**。新增标签路由（`src/rules/tag-policy.ts`）、钉钉/企业微信/飞书适配器（`src/dispatch/adapters.ts`）；测试增至 **46 个且全过**（M3 新增 12 个）；真实实例 `npm run dry-run` 复验仍为 595 条任务 / 15 个项目、全程只读。（当初还含一个双向完成写闸门，已于 v1.27 移除。）
 >
 > **v1.0 变更**：**M1 + M2 代码实现完成**。新增配置加载、只读 Cloud 客户端、SQLite 状态库、消息渲染、SMTP 邮件、HMAC 签名 Webhook、统一计划（三类摘要 + A 类扩展）、Scheduler、healthz、CLI、Dockerfile / compose；测试增至 **34 个且全过**；真实实例 `npm run dry-run` 拉取 595 条任务 / 15 个项目，全链路只读验证通过。A 类扩展仍默认关闭。
 > **v0.9 变更**：M0 全量实测完成（token 已放入本地 `.env`，15 个只读 GET 全部成功，595 条活跃任务）；M1 规则引擎纯函数 + 14 个单元测试落地并全过；探针改为中文注释、按 `total` 翻页、全字段清单与日期格式统计；新增代码规范长期约定。
@@ -298,7 +300,7 @@ M0 实测探针 ──► M1 一致核心 ──► M2 摘要与扩展 ──┬
 | **M0** | 实测探针与字段校准 | **已完成**（结论见 §10；内网直连 v1.26 已验证通过） | 预研，无业务规则 | 字段清单 + 连接信息确认 | 2–3 轮 / 20–40 分 |
 | **M1** | 一致核心（任务级 + 项目级） | **已实现（含官方比对夹具，验收通过）** | 【一致】BASE-01…07、12…29；【增强】EXT-01(邮件)、06…10、14；【官方无】EXT-03、12、13、15 | **strict 计划比对差集为空** + 6 条易错回归全过 | 12–16 轮 / 400–700 分 |
 | **M2** | 三类摘要 + Webhook + 增强开关 | **已实现（真实渠道联调 + VPS 部署联调 2026-11-15 均通过；生产化补齐 v1.9 完成）** | 【一致】BASE-08…10；【增强】EXT-01(Webhook)、02；【官方无】EXT-04、05、11、16…18 | 扩展归因零例外 + 全流程部署跑通 ✅ + 生产化配置验收 ✅ | 10–14 轮 / 400–750 分 |
-| **M3** | 可选增强（标签 / 平台适配器 / 双向完成） | **已实现**（双向完成写端点 v1.26 已在测试实例实测，见 §13） | 【官方无】EXT-19 前半 | 各适配器单测通过；双向完成写端点已单独评审 + 授权实测 | 8–12 轮 / 250–450 分 |
+| **M3** | 可选增强（标签 / 平台适配器） | **已实现**（v1.27 起移除双向完成写能力，见 §13） | 【官方无】EXT-19 前半 | 各适配器单测通过；产品全程只读、不调用任何写端点 | 8–12 轮 / 250–450 分 |
 | **M4** | 管理平台与多命名空间 | **已实现（2026-11-13，验收通过）** | 【官方无】EXT-19 后半 | ✅ 只读管理页 + 命名空间隔离验证 | 8–12 轮 / 250–450 分 |
 
 > 合计：**M0–M2（可用版）820–1,490 分**；**M0–M4（全量）1,320–2,390 分**。误差约 ±50%，口径见 §8。积分按月清零不结转，建议集中在一个月内完成（标准版 4,000 分/月足够）。
@@ -514,7 +516,7 @@ healthz_token: ${HEALTHZ_TOKEN}              # M1 · EXT-12【官方无】
 > **2026-11-14 的显式例外（仅限测试实例，不改变上述承诺）**：用户切换到测试服务器并授权造数后，
 > `scripts/seed-test-data.mjs` 会向**测试实例**发 `POST /v1/tasks` 与 `PATCH /v1/tasks/:id`。
 > 这是独立于产品代码的造数工具，不是 Notify 的运行时行为：`src/` 内（尤其 `src/cloud/client.ts`
-> 的 GET 双白名单）一字未改，`src/actions/complete.ts` 仍默认永不触发，生产实例自始至终只收到过 GET。
+> 的 GET 双白名单）一字未改，产品代码不含任何写端点调用，生产实例自始至终只收到过 GET。
 > 脚本启动时会硬检查地址，一旦 `.env` 指回生产地址立即拒绝执行。
 > 因此本规格各里程碑章节里「595 条任务 / 15 个项目、计划 0 条」的验收数字，均为**生产实例**基线，
 > 仍是有效的历史结论；当前测试实例的数字见头部变更说明与 `HANDOFF.md` §3 / §7。
@@ -527,7 +529,7 @@ healthz_token: ${HEALTHZ_TOKEN}              # M1 · EXT-12【官方无】
 | 鉴权 | 无令牌 `/v1/*` → 401；带令牌四状态列表、单任务详情、项目列表全部 200 |
 | 分页 | 响应外壳 `{tasks, total, limit, offset}`；`next` 共 568 条分 6 页拉全，inbox 24、waiting 0、someday 3，**合计 595 条活跃任务** |
 | 列表 vs 详情 | 详情**没有**独有字段，列表反而多 `description` / `projectId` / `recurrence` 等 → **不需要两段式补查**，M1 只拉列表 |
-| ETag | 列表未返回；详情返回弱 ETag `W/"mindwtr-entity-sha256-…"`。本服务纯只读，用不上 If-Match |
+| ETag | 列表未返回；详情返回弱 ETag `W/"mindwtr-entity-sha256-…"`。本服务纯只读、不实现写端点，用不上 If-Match |
 | 项目 | 15 条，含 `status` / `title` / `rev` / `isFocused`；未见 `reviewAt` / `archivedAt` → 归档过滤回退项目 `status` |
 | API 文档 | `/openapi.json`、`/swagger.json` 带令牌**仍 401**，拿不到 schema；字段结论以实测 + 官方源码为准 |
 | ⚠️ 最大发现 | **595 条活跃任务中没有任何 `dueDate` / `startTime` / `reviewAt` 及提醒参数字段**。这些是条件性字段，当前数据下只有摘要类提醒会触发；规则引擎按官方 schema 声明为可选字段，并用单元测试覆盖 |
@@ -812,9 +814,8 @@ v1.14 及以前只按 `response.ok` 判定，日志显示「投递成功」但�
 `container_name` 与 Coolify 的自动前缀 / 重命名冲突；官方明确建议 Compose 服务不要 `ports:`
 （发布宿主端口会绕过域名代理路由），而 Notify 默认根本不需要入站域名。
 
-**安全设计**：编排里故意**不列** `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`，
-代码用内置 `false`，面板里也无法误开云端写端点；`NOTIFY_STATE_PATH` / `HEALTHZ_PORT` 写死，
-避免状态库被改到只读根文件系统上。`MINDWTR_TOKEN: ${MINDWTR_TOKEN:?}` 让 Coolify 在缺
+**安全设计**：产品代码不含任何云端写端点调用，发送提醒后不改任务状态；
+`NOTIFY_STATE_PATH` / `HEALTHZ_PORT` 写死，避免状态库被改到只读根文件系统上。`MINDWTR_TOKEN: ${MINDWTR_TOKEN:?}` 让 Coolify 在缺
 token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值（`src/config.ts` 的
 `bool` / `number` / `list` 对空串都回退默认）。
 
@@ -1033,11 +1034,9 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 
 ---
 
-### 12.17 v1.26 两项历史遗留实测（2026-11-16）
+### 12.17 v1.26 内网直连实测（2026-11-16）
 
-本轮**产品代码零改动**，只补两项历史遗留验证，并把结论写入规格。用户在同一窗口明确授权两项都做。
-
-**一、内网直连连通性验证（M0/M1 遗留，此前挂 `- [ ]`）**
+本轮当时**产品代码零改动**，只补 M0/M1 遗留的内网直连连通性验证（此前挂 `- [ ]`），并把结论写入规格。
 
 在 VPS 上只读盘点当前 Docker 状态：cloud 容器为 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0`，
 所在 bridge 网络为 `szj4zxoghn8jrdm0hghsqhu0`（非 external、scope local），内外端口 8787。
@@ -1052,69 +1051,43 @@ docker run --rm --network szj4zxoghn8jrdm0hghsqhu0 busybox \
 结论：内网直连可达。旧记录的容器/网络随机 ID `rifyenhfmtws99c3pea0zu4d` 已失效（应用重建所致），
 再次印证内网地址不能写死。按既定选型，产品部署**默认仍走公网 HTTPS**，本次只验证连通性、不改任何编排或 `.env`。
 
-**二、`complete` 端点实测与 If-Match 验证（M3 遗留，此前挂 `- [ ]`）**
-
-用户显式授权后，仅对测试实例 `https://mindwtr-cloud.zlay.cc.cd` 实测；写目标是本轮新建的 3 条一次性
-`[NotifyTest-Complete]` 任务，不碰任何既有任务。两道写开关通过 `options.env` 只在探针进程内注入，**未改 `.env`**；
-临时探针放在系统 Temp、跑完即删、不进 Git，生产仓库的写能力面不变。调用的是真实 `src/actions/complete.ts::completeTask`。
-
-| 场景 | 请求 | 结果 |
-|---|---|---|
-| A | `POST /v1/tasks/:id/complete`，不带 If-Match | `attempted=true ok=true HTTP 200`「已完成」 |
-| B | 同上，带详情接口返回的真实**弱 ETag** | `HTTP 200`「已完成」（etag 格式 weak） |
-| C | 同上，带**故意错误的** ETag | `HTTP 200`「已完成」← 关键对照 |
-
-**结论**：`POST /complete` 端点能完成任务，但**不尊重 If-Match 乐观锁**（错误 ETag 同样 200，无 412）。
-这与「官方文档只在 PATCH 上写明 If-Match」一致。故本能力即便将来启用，也无法靠 ETag 防止并发完成冲突，
-须由业务侧自行保证幂等；`completeTask` 的两道开关继续默认关闭，生产实例自始至终只收到 GET。
-
-**冲突评审记录**（对应 §13 只读边界）：用户「只能查询、不能更改云端数据」的约束在**生产实例**上完全保持；
-测试实例的这一次写是用户单独、明确授权的一次性验证，范围限定在一次性任务，且已如实记录端点不支持 If-Match 的事实。
-
-**收尾**：`npm test` **92/92**（未改产品代码）；只读 dry-run 为 17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 /
-过期跳过 6 条（任务总数因造数变化，触发点基线未变）；两处临时探针均已删除。
+> 同轮曾对测试实例的一次性任务实测过双向完成写端点（结论：端点不支持 If-Match）；
+> 该能力与相关代码已在 **v1.27 按用户要求移除**，实测段落与冲突评审记录随之删除，产品回归纯只读。
 
 ---
 
-## 13. M3 · 可选增强（标签 / 平台适配器 / 双向完成）
+## 13. M3 · 可选增强（标签 / 平台适配器）
 
-**目标**：接入国内常用机器人与自动化，按任务标签做细粒度路由。**状态：已实现（2026-11-13；双向完成写端点已于 v1.26 在测试实例实测、结论见 §12.17；仍默认永不触发）· 可选。**
+**目标**：接入国内常用机器人与自动化，按任务标签做细粒度路由。**状态：已实现（2026-11-13）· 可选。**
 
-**前置依赖**：✅ M2 已实现。双向完成的冲突评审仍在「待用户决策」，见下方只读边界。
+**前置依赖**：✅ M2 已实现。
 
-**三态范围**：全部 `EXT-19`【官方无】前半 —— 标签约定规则、Webhook 平台适配器、双向完成。**不含任何 `BASE`【一致】规则**；标签只过滤渠道，不改写触发计划。
+**三态范围**：全部 `EXT-19`【官方无】前半 —— 标签约定规则、Webhook 平台适配器。**不含任何 `BASE`【一致】规则**；标签只过滤渠道，不改写触发计划。
 
 **任务清单**
 
 - [x] 标签约定：`#silent` / `@silent` 全静默、`#notify-email` 只发邮件、`#notify-webhook` 只发 Webhook（含适配器渠道）。支持正文内 `#tag` / `@context` 与 `tags` / `contexts` 数组两种来源。
 - [x] 平台适配器：钉钉（加签，`sign`/`timestamp` 追加到 URL）、企业微信群机器人（无签名、`text` 格式）、飞书（`timestamp`/`sign` 放 JSON body）。三者复用同一套 POST 重试逻辑。
-- [x] 双向完成（可选）：`src/actions/complete.ts` 已实现 `POST /v1/tasks/:id/complete` 的构造与调用，但**默认永不发写请求**。
 - [x] 各适配器单测与固定签名向量。
-- [x] `complete` 端点实测与 If-Match 验证 —— **v1.26 已在测试实例完成**（用户显式授权，见 §12.17 与下方冲突评审）：对一次性任务发真实写请求全 200；故意错误 ETag 仍 200 ⇒ **端点不尊重 If-Match**。生产实例仍从未收到任何写请求。
 
 **只读边界（本里程碑最重要的约束）**
 
-用户明确要求对 Cloud 实例「只能查询，不能更改里面的数据」。因此：
+用户明确要求：Notify 对 Cloud 实例「只能查询，不能更改里面的数据」，**发送提醒后不调用任何接口把任务改为完成**。
+因此产品代码（含 CLI / Scheduler / Dispatcher）不存在任何写路径：`src/cloud/client.ts` 的双白名单只允许 `GET`，
+且代码里没有任何 `POST` / `PUT` / PATCH / DELETE 的构造点。v1.27 已彻底移除早期预留的双向完成写闸门
+（`src/actions/complete.ts` 与两道写开关），Notify 不管理任务生命周期，只把触发点转发到邮件 / Webhook。
+测试服务器上 `scripts/seed-test-data.mjs` 的造数写请求是独立于产品代码的授权例外（硬拒绝生产地址）。
 
-1. `completeTask` 必须**同时**打开 `NOTIFY_ALLOW_WRITE=true` 与 `NOTIFY_COMPLETE_ACTION=true` 才会构造 POST；两者默认均为 `false`。
-2. CLI、Scheduler、Dispatcher **均不调用该函数**，代码中不存在任何自动写路径；`src/cloud/client.ts` 的双白名单仍只允许 `GET`。
-3. 与 `EXT-15`【官方无】纯只读原则存在冲突；文档只在 **PATCH** 上写明支持 `If-Match`，`complete` 端点是否支持**未经官方确认**。启用前需用户单独评审并授权一次写实测。
-   **v1.26 冲突评审结论**：用户显式授权后仅在测试实例实测。结果——端点完成成功（200），但**带错误 ETag 也返回 200**，
-   即 `complete` 端点**不支持 If-Match 乐观锁**。因此若将来真的启用本能力，无法用 ETag 防止并发完成冲突，
-   只能靠业务侧自行保证幂等；两道开关继续默认关闭、生产实例继续零写请求。评审记录见 §12.17。
-4. v1.26 之前全程未向真实实例发出任何 POST/PUT/PATCH/DELETE；**v1.26 起，唯一一次写实测仅针对测试实例的一次性任务**（见 §12.17），生产实例仍为零写。
-
-**交付物**：`src/rules/tag-policy.ts`、`src/dispatch/adapters.ts`、`src/actions/complete.ts`、`tests/m3.test.ts`；`src/config.ts` 增加 M3 配置段，`src/dispatch/{webhook,index,message}.ts` 与 `src/scheduler.ts` 接入适配器与标签过滤，`.env.example` 补齐 M3 变量，`package.json` 的 `test` 纳入 M3 用例。
+**交付物**：`src/rules/tag-policy.ts`、`src/dispatch/adapters.ts`、`tests/m3.test.ts`；`src/config.ts` 的 M3 配置段，`src/dispatch/{webhook,index,message}.ts` 与 `src/scheduler.ts` 接入适配器与标签过滤，`.env.example` 补齐 M3 变量，`package.json` 的 `test` 纳入 M3 用例。
 
 **验收标准**
 
 - [x] 每个适配器单测通过：钉钉 / 飞书签名用固定向量校验，企微格式校验，适配器 POST 失败重试（第 3 次成功）。
 - [x] 标签规则不改写任何 BASE 触发点（专门有一条用例断言计划集合不变）；规则默认关闭时渠道列表原样放行。
-- [x] 双向完成的只读闸门：默认配置「连 HTTP 请求都不发」、只开一道开关仍拒绝、两道都开才构造 POST（mock，不触达真实实例）。
-- [x] 全量测试 **46/46 通过**；`npm run dry-run` 对真实实例仍拉取 595 条任务 / 15 个项目、计划 0 条、未投递未写库。
-- [x] `read_only: false` 显式评审记录与 complete 端点实测：**v1.26 已完成**——评审结论与实测数据见 §12.17；两道开关仍默认关闭，未改 `read_only` 生产编排。
+- [x] 产品代码不含任何写端点调用或写开关；`npm test` **89/89**，`npm run dry-run` 对真实实例仍全程只读、未投递未写库。
+- [x] v1.27 移除双向完成写能力：删除 `src/actions/complete.ts`、`m3.actions` 配置与 3 个相关用例，回归纯只读。
 
-**预算**：8–12 轮 / 250–450 积分（实际消耗含在 M1+M2 同一会话内）。**退出门槛**：可选，不做不影响 M2 交付的可用性；当前除写端点实测外均已满足。
+**预算**：8–12 轮 / 250–450 积分（实际消耗含在 M1+M2 同一会话内）。**退出门槛**：可选，不做不影响 M2 交付的可用性；已满足。
 
 ---
 
@@ -1135,7 +1108,7 @@ docker run --rm --network szj4zxoghn8jrdm0hghsqhu0 busybox \
 
 **只读边界（本里程碑最重要的约束）**
 
-1. 管理页所有展示接口是 `GET`；唯一的 `POST /admin/api/retry` 只写**本地状态库**的一条记录状态，不向 Mindwtr Cloud 发出任何请求，也不触碰 `/complete`。Cloud 客户端的 GET 双白名单不变。
+1. 管理页所有展示接口是 `GET`；唯一的 `POST /admin/api/retry` 只写**本地状态库**的一条记录状态，不向 Mindwtr Cloud 发出任何请求（产品代码不含任何写端点调用）。Cloud 客户端的 GET 双白名单不变。
 2. 页面源码、HTML 与全部 JSON 均不含 `MINDWTR_TOKEN`、管理 token、`WEBHOOK_SECRET`、SMTP 密码、Webhook URL 与任务正文；管理 token 由用户在浏览器临时输入，只放请求头。
 3. 「下一批待触发提醒」取 `Scheduler.upcoming()` 的最近一轮计划缓存，不重新拉取云端、不重算计划。
 4. 本次开发全程未向真实实例发出任何 POST / PUT / PATCH / DELETE。
@@ -1261,7 +1234,7 @@ docker run --rm --network szj4zxoghn8jrdm0hghsqhu0 busybox \
 | EXT-16 | 【官方无】 | 仅日期任务当日提醒：`date_only_remind_at` 默认 09:00 发一条并计入晨间简报；判定仍严格用 BASE-21 正则 | 叠加 BASE-22 | 仅日期完全不提醒，仅出现在摘要「今日到期」 | M2 |
 | EXT-17 | 【官方无】 | 积压逾期汇总 backlog：首次或距上次 >24h 且确有逾期任务时发一条清单（节流） | 叠加 BASE-03/05，不替换逐条提醒 | 无启动汇总，只走官方 due-repeat 节奏 | M2 |
 | EXT-18 | 【官方无】 | 静默时段 `quiet_hours`：静默期顺延，解禁后只发一条最新状态、不叠加补发 | 改变发送时刻，与 BASE-01…10 冲突 | 按官方触发时刻立即发送 | M2 |
-| EXT-19 | 【官方无】 | 后续候选：标签规则、平台适配器、双向完成（M3）；管理页面、多命名空间（M4） | M3+ | 无 | M3 / M4 |
+| EXT-19 | 【官方无】 | 后续候选：标签规则、平台适配器（M3）；管理页面、多命名空间（M4）。双向完成写能力已于 v1.27 移除 | M3+ | 无 | M3 / M4 |
 
 > **用户此前四项决策的落位**（能力全保留，但不改写默认行为）：仅日期 09:00 → EXT-16 默认关；60s 轮询 → EXT-08 工程参数；单任务带描述 → BASE-15【一致】，汇总不带 → EXT-03【官方无】；SQLite / 渠道维度 / 外发通道 → EXT-01/06/07【增强】。
 

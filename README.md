@@ -107,7 +107,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
   可选 `warn` / `error` / `silent`。命令输出（dry-run 计划、投递结果）不受级别影响；详见 **[配置参考 §9](docs/configuration.md)**。
   Webhook 实际发出的字段与四种 body 形态见 **[输出数据格式清单](docs/webhook-payload.md)**。
 - `NOTIFY_ADMIN_TOKEN` / `NOTIFY_ADMIN_RETRY` —— 管理页鉴权与手动重发总开关；重发默认关闭且强制鉴权。
-- `NOTIFY_TAG_RULES` / `NOTIFY_WEBHOOK_ADAPTERS` / `NOTIFY_ALLOW_WRITE` 等扩展**默认全部关闭**。
+- `NOTIFY_TAG_RULES` / `NOTIFY_WEBHOOK_ADAPTERS` 等扩展**默认全部关闭**。
 - `strict_mode: true` 会强制关掉全部「新增触发点」类扩展，用于一致性验收。
 - A 类扩展（仅日期 09:00 提醒、backlog 汇总、静默时段）代码在，但默认不开。
 
@@ -160,15 +160,14 @@ src/
     webhook.ts       HMAC 签名、5 分钟防重放、指数退避重试
     adapters.ts      【官方无】钉钉 / 企微 / 飞书适配器（M3）
     index.ts         渠道级分发器
-  actions/complete.ts 【官方无】双向完成只读闸门（M3，默认永不发写请求）
   scheduler.ts       轮询、5 分钟补发、失败告警与恢复
   healthz.ts         GET /healthz + /admin 路由委托、共享恒定时间鉴权
   cli.ts             全部命令行入口
-tests/               8 个测试文件，共 85 个用例
+tests/               9 个测试文件，共 89 个用例
   reminder-plan.test.ts   M1 规则引擎（BASE-21/22/12/25/23/16/17/18/19/28 + 易错回归）
   m2-rules.test.ts        M2 三类摘要 / A 类扩展 / 时区
   m2-delivery.test.ts     M2 渠道：SMTP、Webhook 签名与重试、状态库去重
-  m3.test.ts             M3 标签路由、平台适配器、双向完成只读闸门
+  m3.test.ts             M3 标签路由、平台适配器
   official-golden.test.ts 目标 A：官方 schedule-utils.ts 黄金基准比对（strict 差集为空）
   official-schedule.ts   官方 schedule-utils.ts 逐字移植基准（date / due-reminder-lead /
                           task-status / task-reminder-policy 依赖），供 golden 夹具使用
@@ -181,8 +180,8 @@ tests/               8 个测试文件，共 85 个用例
 
 ## 三条硬约束（改动代码前必读）
 
-1. **只读**：对 Cloud API【生产实例】只允许 `GET`，且路径必须在白名单内；禁止 POST / PUT / PATCH / DELETE。
-   `src/actions/complete.ts` 是唯一涉及写端点的代码，需两道开关同时打开且无任何自动调用路径——**默认永不触发**。
+1. **只读**：对 Cloud API 只允许 `GET`，且路径必须在白名单内；产品代码**不含任何写端点调用**，禁止 POST / PUT / PATCH / DELETE。
+   发送提醒后不会回头改动任务状态——Notify 只读取触发点并转发，不管理任务生命周期。
    已授权例外：测试服务器上可用 `npm run seed:test` 造数（脚本硬拒绝生产地址），产品代码 `src/` 仍严格只读。
 2. **凭据**：token 只放本机 `.env`，不写日志、报告、聊天输出或任何云端资源。`.gitignore` 已排除 `.env`。
 3. **代码风格**：人类可读优先，命名直白、函数短小、必要中文注释；每个规则函数标注对应 `BASE-xx` / `EXT-xx` 编号与三态标记。
@@ -223,7 +222,7 @@ SMTP 凭据仍完整注入容器，未来放行端口即可启用。
 **目标 E「compose / Dockerfile 生产化补齐」已于 2026-11-15 完成（v1.9）**：`healthcheck`、
 `read_only: true` + `tmpfs` 落地，生产镜像剔除 `scripts/`，新增 `.dockerignore`，并在远端用真实 Docker 验证
 （`config --quiet` 通过、镜像不含造数脚本与 `.env`、容器 `HEALTH=healthy` 且 `READONLY=true`、卷与 `/tmp` 可写），
-见 `spec.md` §12.3。五个目标 A–E 全部完成；剩余仅 `complete` 写端点实测（只读约束主动不做）与内网直连（可选）。
+见 `spec.md` §12.3。五个目标 A–E 全部完成；内网直连已于 2026-11-16 验证通过（可选，产品仍默认走公网）。
 
 **v1.10 缺陷修复（2026-11-15）**：新增 `src/errors.ts` 统一错误信息归一化，修掉 Bun 下空 `error.message`
 写空串、以及异常文本里含密钥的 Webhook URL 落库两类问题；healthcheck 的 `HEALTHZ_TOKEN` 鉴权分支
@@ -248,7 +247,7 @@ SMTP 凭据仍完整注入容器，未来放行端口即可启用。
 **v1.16 Coolify 部署教程（2026-11-15）**：新增 **[docs/coolify.md](docs/coolify.md)** 与
 `compose.coolify.yaml`。因为 Notify 是**纯出站服务**，Coolify 上默认不配域名、不发布端口、
 只跑单副本并关掉 PR 预览；凭据只在 Coolify 面板的 Environment Variables 里，
-编排用 `${VAR}` 白名单注入（`MINDWTR_TOKEN` 必填），**故意不暴露云端写开关**。
+编排用 `${VAR}` 白名单注入（`MINDWTR_TOKEN` 必填），产品代码不含任何云端写能力。
 已在 Coolify 4.7.5 / Traefik 3.7 环境只读核对，并用真实 Docker Compose 验证编排语法与必填约束；
 **本次未实际创建资源或部署**。`npm test` 仍 85/85，详见 `spec.md` §12.7。
 
