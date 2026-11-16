@@ -746,7 +746,7 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 |---|---|
 | 远端 main | 首次上线 `63c382c`（4 个 commit）；文档提交 `587e823` 已推送；作者 `Notify Agent`、未签名 |
 | 受版本控制文件 | 54 个；无 `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite |
-| GitHub Actions `CI` | **连续两次 completed / success**（`63c382c` → run 43730537851，`587e823` → run 43780028017）；3 个 job 全绿（单测 / 镜像与编排校验 / 敏感信息防呆），徽章 passing |
+| GitHub Actions `CI` | 每次推送触发，**已连续 3 次 completed / success**（`63c382c` / `587e823` / `941b1f6`）；3 个 job 全绿（单测 / 镜像与编排校验 / 敏感信息防呆），实时状态见徽章 |
 | 远端 clone 验证 | `git clone` commit `63c382c`；`npm test` 85/85；两份编排 `config --quiet` 退出 0；`docker build` 成功 |
 | 远端 compose 部署 | `healthz` 200、`admin` 200、`HEALTH=healthy`、`READONLY=true`、卷 `-> /app/data`；随后 `down` 并清理目录 / 卷 / 网络 |
 | 副作用 | 假 token + 不可达 Cloud 地址 + 渠道全关：不连真实云端、不发消息；`.env` 未改动 |

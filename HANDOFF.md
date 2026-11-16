@@ -401,9 +401,10 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
     - 提交身份与签名：助手 = `Notify Agent` + 不签名；所有者 = `zlay0701` + 签名（Verified）。
     - 本机 `git push` 的 GCM 凭据曾报 `Invalid username or token`（GitHub 不支持密码认证），
       用户重新登录后恢复；**push 命令当时被环境安全策略拦截，未重试**，改由用户执行。
-    - 后续文档提交 `587e823` 推送后 CI 再次 **completed / success**（run `43780028017`），
-      三个 job 全绿；助手环境本身无法 push（直连 `github.com:443` 超时、代理对 git TLS 不兼容），
-      凡涉及推送一律由用户在本地执行。
+    - 后续文档提交 `587e823`、`941b1f6` 推送后 CI 均 **completed / success**，累计 3 次全绿。
+    - 推送通道：助手在沙箱内**无法直连** `github.com:443`（21s 超时），走本机代理时 git 的
+      schannel / openssl 后端都报 TLS 握手失败（同一代理 curl 却是 200）；**提权执行（需用户批准）后可以 push**。
+      因此默认仍由用户在本地 `git push`，助手负责提交、扫描与验证。
 
 ---
 
