@@ -3,7 +3,16 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.28 · 日期：2026-11-16
+> 版本：v1.29 · 日期：2026-11-16
+> **v1.29 变更**：**造数脚本补项目数据，项目回顾（BASE-07）完成端到端实测**（产品代码零改动）。
+> 用户要求"新增测试数据时也给新增一些需要提醒的项目，新增后实际测试"。
+> ① `scripts/seed-test-data.mjs` 增加项目造数：按 `[NotifyTest]` 前缀幂等创建/更新两个带 `reviewAt`
+> 的项目（未来 45 分钟、刚过 3 分钟），走 `POST /v1/projects` / `PATCH /v1/projects/:id`
+> （body 用 `{title, props}`，400 时回退扁平字段），沿用非生产硬检查、不 DELETE、不输出正文。
+> ② 官方 schema 确认 `reviewAt` 的 `cloudWrite=create-patch`，可通过 REST 写——推翻早期"项目没有该键"的结论。
+> ③ 实测：造数后 `GET /v1/projects` 出现 2 条带 `reviewAt` 的项目；dry-run 计划由 6 → **8 条**，
+> 新增 2 条 `project-review`；`--once` 真实投递 2 条成功、0 失败，再跑一轮"重复跳过 2"验证去重。
+> ④ 更新 spec §12.15、HANDOFF、docs/rules.md 的过时结论。`npm test` 仍 **85/85**。
 > **v1.28 变更**：**移除 M3 标签路由，所有渠道默认一起发送**（用户明确要求："去掉 M3 的标签路由的相关代码 文档 配置，默认所有渠道一起发送即可"）。
 > ① 删除 `src/rules/tag-policy.ts`（`parseTaskTags` / `getTagPolicy` / `filterChannelsByTags`）、
 > `src/config.ts` 的 `m3.tagRules` 段、`tests/m3.test.ts` 的 4 个标签用例；`npm test` 由 89 → **85/85**。
@@ -54,7 +63,7 @@
 > ③ `src/dispatch/adapters.ts`：`eventLabel` 补 `task.project_review` →「项目回顾」（此前会原样显示英文），
 > 平台文本输出项目行。
 > ④ `tests/m2-rules.test.ts` 新增 2 个用例（归档/仅日期不生成、`include_review=false` 不生成），`npm test` **88/88**。
-> ⑤ 真实数据限制：测试实例项目接口**没有 `reviewAt` 键**，故真实数据上暂无法验证；字段出现即自动生效。
+> ⑤ 早期测试实例项目接口没有 `reviewAt` 键；v1.29 造数脚本已创建带该字段的项目并完成端到端验证（见 §12.15）。
 > `dry-run` 计划条数无变化（当前无项目带该字段）。
 > 文档：`docs/rules.md`（§2.1 改为已实现、§7 加排查行、§8 边界改写）、
 > `docs/webhook-payload.md`（顶层加 `project`、事件表修正、新增 §3.6 与 §5.5、`eventLabel` 说明改为 14 种）。
@@ -1011,10 +1020,13 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 `reminderPolicy` 字段，因此不参与任务策略判定；`reviewAt` 只写日期时不排（BASE-22）；
 去重键是「每项目 + ISO 时间戳」，所以改了回顾时间会重新提醒一次。
 
-**真实数据限制**：测试实例 `GET /v1/projects` 返回的字段是
-`color / createdAt / id / isFocused / isSequential / order / rev / revBy / status / supportNotes / tagIds / title / updatedAt`
-—— **没有 `reviewAt`**，所以真实数据上暂时无法端到端验证；字段一旦出现即自动生效，
-`dry-run` 当前计划条数与之前一致（6 条）。
+**端到端验证（v1.29 完成）**：早期测试实例的项目都没有 `reviewAt` 键，故一度无法真实验证。
+官方 `project-sync-schema.fixture.json` 确认 `reviewAt` 的 `cloudWrite=create-patch`，可经 REST 写。
+v1.29 扩展 `scripts/seed-test-data.mjs`，按 `[NotifyTest]` 前缀幂等创建两个带 `reviewAt` 的项目
+（未来 45 分钟、刚过 3 分钟，走 `POST /v1/projects` / `PATCH /v1/projects/:id`）。
+实测：造数后 `GET /v1/projects` 出现 2 条带 `reviewAt` 的项目；`dry-run` 计划从 6 → **8 条**，
+新增 2 条 `project-review`（taskId 为 `-`，项目级提醒特征）；`--once` 真实投递 2 条成功 / 0 失败，
+再跑一轮"重复跳过 2"验证渠道级去重。项目回顾消息含项目名，由 `fromProjectReviews` 生成。
 
 **未改**：BASE 规则数值、strict 基线、`Dockerfile`、`.env`。`npm test` **88/88**。
 

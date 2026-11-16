@@ -157,7 +157,7 @@
 | 单个任务不发 | 策略是 `skip`，或状态是 `done`/`archived` | 看任务 `reminderPolicy` 与状态 |
 | 只有回顾在发 | 策略设成了 `start`/`due`，或 `skip`（回顾不受影响） | 同上 |
 | 摘要没发 | 对应 `NOTIFY_DIGEST_*` 关了，或 `strict` 模式 | 看配置与启动日志的级别 |
-| 项目回顾没发 | 项目**没有 `reviewAt` 字段**、只写了日期、或项目已归档 | 看 `GET /v1/projects` 返回里有没有 `reviewAt`；`include_review` 是否关掉 |
+| 项目回顾没发 | 项目**没有 `reviewAt` 字段**、只写了日期、或项目已归档 | 看 `GET /v1/projects` 返回里有没有 `reviewAt`；`include_review` 是否关掉；测试库可 `npm run seed:test` 造带该字段的项目 |
 | 收集箱任务以为不提醒 | 实际上**会提醒**（`inbox` 属活跃状态） | 见 §1 提示 |
 | 重复提醒只发了 1 次 | 没设 `repeatReminderMinutes`，或策略是 `start`/`due` | 单一策略下官方也不排重复 |
 | 邮件全失败 | VPS 出站 25/465/587 被拒 | 改用 `SMTP_PORT=2587`，详见 `docs/configuration.md` §4.6 |
@@ -173,10 +173,9 @@ node src/cli.ts --dry-run --strict --log-level=debug   # 带完整判定链路
 
 ## 8. 已知边界（如实标注）
 
-1. **项目回顾依赖 `reviewAt` 字段**：官方 schema 有该字段，但当前测试实例的项目接口里**根本没有这个键**
-   （实测项目字段只有 `color/createdAt/id/isFocused/isSequential/order/rev/status/title/...`）。
-   代码已按「有该字段就提醒」实现并有单测覆盖，但在真实数据上暂时无法验证；
-   字段一旦出现（客户端升级 / 手动写入）即自动生效，无需改代码。
+1. **项目回顾依赖 `reviewAt` 字段**：官方 schema 的 `reviewAt` 可经 REST 写（`cloudWrite=create-patch`）。
+   早期测试实例的项目都没设这个键，v1.29 起 `npm run seed:test` 会幂等创建两个带 `reviewAt` 的测试项目，
+   并已端到端验证触发点与真实投递；字段一旦出现（客户端升级 / 造数写入）即自动生效，无需改代码。
 2. **客户端本地能力不模拟**（BASE-11）：番茄钟、Snooze / Dismiss、iOS 角标、设备通知权限。
 3. **平台文本有截断**：钉钉 / 企微 / 飞书的摘要只列「今日到期 + 逾期」的前 5 条，`startingToday` / `focused`
    不出现在文本里（结构化 Webhook 才有完整数据）。

@@ -5,12 +5,13 @@
  * ⚠️ 这是「对 Mindwtr Cloud 只读约束」的**显式例外**，边界必须说清楚：
  *   1. 产品代码 src/ 内仍严格只读 —— src/cloud/client.ts 的 GET 双白名单一个字都没改；
  *   2. 本脚本只在 MINDWTR_BASE_URL 指向**非生产**实例时才运行，启动时硬检查；
- *   3. 写操作只有两条固定路径：POST /v1/tasks（新建）、PATCH /v1/tasks/:id（滚动自己造的数据）；
- *      不 DELETE 任何东西、不写文件、不输出 token 与任务正文；
+ *   3. 写操作只有四条固定路径：POST /v1/tasks、PATCH /v1/tasks/:id（任务造数），
+ *      POST /v1/projects、PATCH /v1/projects/:id（项目造数，均只滚动自己造的数据）；
+ *      不 DELETE 任何东西、不写文件、不输出 token 与任务/项目正文；
  *   4. 只读约束的完整记录见 spec.md §10 / §13，本脚本不改变那些结论。
  *
- * 目的：给空库补上带 dueDate / startTime / reviewAt 的任务，让 strict dry-run
- * 终于能算出任务级触发点（此前 595 条活跃任务全无时间字段，计划恒为 0 条），
+ * 目的：给空库补上带 dueDate / startTime / reviewAt 的任务，以及带 reviewAt 的项目，
+ * 让 strict dry-run 能算出任务级触发点与项目回顾（BASE-07）触发点，
  * 从而验证 M1 规则引擎、BASE-22 仅日期判定与 M4 管理页「下一批待触发提醒」。
  *
  * 用法：node scripts/seed-test-data.mjs
@@ -112,6 +113,36 @@ const samples = [
   { title: `${TEST_PREFIX} 仅日期·应不触发`, fields: { status: 'next', dueDate: dateKey } },
 ];
 
+/**
+ * 项目样本（BASE-07 项目回顾）：带 reviewAt 的项目才会产生 project-review 触发点。
+ * 与任务一样按标题前缀幂等：已存在就 PATCH 把 reviewAt 滚到相对当前时刻。
+ * status 用官方项目枚举 active（项目的状态是 active/someday/waiting/archived，不是任务的 next）。
+ * 注意：只设 reviewAt、不动其它字段，避免碰既有项目数据。
+ */
+const projectSamples = [
+  { title: `${TEST_PREFIX} 项目·回顾未来45分钟`, fields: { status: 'active', reviewAt: isoAt(45) } },
+  { title: `${TEST_PREFIX} 项目·回顾刚过3分钟`, fields: { status: 'active', reviewAt: isoAt(-3) } },
+];
+
+/**
+ * 新建项目：官方文档没给项目 body 示例，但项目与任务同用 cloudWrite 机制，
+ * 且 `cancelledAt` 段落明确「创建时在 props 里接收字段」→ 先试 { title, props }；
+ * 若服务端要求扁平字段（400），再退回 { title, ...fields }。只发两种固定结构，不输出正文。
+ * @returns { status, json } 最终一次响应的状态与解析结果
+ */
+async function createProject(sample) {
+  const shaped = await request('POST', '/v1/projects', {
+    title: sample.title,
+    props: sample.fields,
+  });
+  if (shaped.status >= 200 && shaped.status < 300) return shaped;
+  // 用扁平字段再试一次；仍失败就返回第二次结果，由调用方按状态处理。
+  if (shaped.status === 400) {
+    return request('POST', '/v1/projects', { title: sample.title, ...sample.fields });
+  }
+  return shaped;
+}
+
 async function main() {
   // 先读现网数据，判断哪些测试任务已经存在（GET，纯只读）。
   const list = await request('GET', '/v1/tasks?all=1&limit=100');
@@ -163,8 +194,53 @@ async function main() {
     }
   }
 
-  console.log(`完成：新建 ${created} 条，更新 ${updated} 条，失败 ${failed} 条。`);
-  if (failed) process.exitCode = 1;
+  // --- 项目造数（BASE-07 项目回顾）---
+  const projectList = await request('GET', '/v1/projects?limit=100');
+  if (projectList.status !== 200) {
+    console.error(`读取现有项目失败：HTTP ${projectList.status}（${briefError(projectList)}）`);
+    process.exitCode = 1;
+    return;
+  }
+  const existingProjects = new Map();
+  for (const project of projectList.json?.projects ?? []) {
+    if (typeof project.title === 'string' && project.title.startsWith(TEST_PREFIX)) {
+      existingProjects.set(project.title, project);
+    }
+  }
+  console.log(`已有测试项目：${existingProjects.size} 条`);
+
+  let projectsCreated = 0;
+  let projectsUpdated = 0;
+  let projectsFailed = 0;
+
+  for (const sample of projectSamples) {
+    const found = existingProjects.get(sample.title);
+    if (found) {
+      // PATCH 用扁平字段，把 reviewAt 滚回相对当前时刻。
+      const patched = await request('PATCH', `/v1/projects/${encodeURIComponent(found.id)}`, sample.fields);
+      if (patched.status >= 200 && patched.status < 300) {
+        projectsUpdated += 1;
+        console.log(`更新项目 ${sample.title} -> ${patched.status}`);
+      } else {
+        projectsFailed += 1;
+        console.log(`更新项目失败 ${sample.title} -> ${patched.status} ${briefError(patched)}`);
+      }
+      continue;
+    }
+
+    const made = await createProject(sample);
+    if (made.status >= 200 && made.status < 300) {
+      projectsCreated += 1;
+      const project = made.json?.project ?? made.json;
+      console.log(`新建项目 ${sample.title} -> ${made.status} id=${project?.id ?? '服务端未回显'}`);
+    } else {
+      projectsFailed += 1;
+      console.log(`新建项目失败 ${sample.title} -> ${made.status} ${briefError(made)}`);
+    }
+  }
+
+  console.log(`完成：任务 新建 ${created} / 更新 ${updated}；项目 新建 ${projectsCreated} / 更新 ${projectsUpdated}；失败 ${failed + projectsFailed} 条。`);
+  if (failed + projectsFailed) process.exitCode = 1;
 }
 
 void main();

@@ -61,7 +61,9 @@ scheduler.runOnce()
 
 - 结果缓存 `PROJECT_CACHE_MS = 10 分钟`，用于项目名与归档过滤。
 - 响应外壳实测为 `{ projects, total, limit, offset }`；生产实例 15 条项目。
-- 项目列表未见 `reviewAt` / `archivedAt` → 归档项目过滤优先用任务级 `projectArchivedAt`，回退项目 `status`。
+- 项目字段取决于是否设过：早期项目没有 `reviewAt` / `archivedAt` 键；v1.29 起造数脚本会创建带
+  `reviewAt` 的测试项目（`POST /v1/projects` body 用 `{title, props:{status, reviewAt}}`，官方 schema 的
+  `cloudWrite=create-patch` 允许写）。归档过滤优先用任务级 `projectArchivedAt`，回退项目 `status`。
 
 ### 1.3 请求头与失败处理
 
