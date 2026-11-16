@@ -36,6 +36,7 @@
 | [页面操作手册](docs/admin-guide.md) | `/admin` 管理页、鉴权、六块视图、手动重发、healthz 与 API 速查 |
 | [Cloud API 调用清单](docs/cloud-api.md) | 运行时实际调用的接口、白名单允许但不用、运维脚本、主动禁止的写端点 |
 | [Webhook 输出数据格式](docs/webhook-payload.md) | 14 种 event 的完整字段表与 JSON 样例、四种 body、验签与幂等、**业务响应 `errcode` 校验** |
+| [提醒规则手册](docs/rules.md) | **什么情况下会提醒**：五道判定关、全部触发类型、策略语义、时间与窗口、排查表 |
 | [HANDOFF.md](HANDOFF.md) | 新窗口交接包：已确认事实、硬约束、未完成清单 |
 | [spec.md](spec.md) | 唯一权威规则来源 |
 | [docs/probe-result.md](docs/probe-result.md) | M0 脱敏实测报告 |
@@ -110,7 +111,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
 ## 目录结构
 
 ```
-spec.md              规格说明书（唯一权威规则来源，v1.22）
+spec.md              规格说明书（唯一权威规则来源，v1.23）
 HANDOFF.md           新对话窗口的交接包 / 开工提示词
 README.md            本文件
 .env.example         配置模板（不含真实凭据）
@@ -133,6 +134,7 @@ docs/configuration.md 全量配置参考、验签协议、典型样例
 docs/admin-guide.md   /admin 管理页操作手册（鉴权、重发、API 速查）
 docs/cloud-api.md     Mindwtr Cloud API 调用清单（运行时 / 脚本 / 禁止）
 docs/webhook-payload.md Webhook 出站数据格式清单（字段表、样例、验签、隐私边界）
+docs/rules.md         提醒规则手册（触发条件、策略、窗口、排查）
 docs/probe-result.md  M0 实测报告
 src/
   config.ts          环境变量加载与校验（含按 namespace 分段配置）
