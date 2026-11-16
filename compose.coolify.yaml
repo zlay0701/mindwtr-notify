@@ -73,6 +73,8 @@ services:
       # ---- 邮件通道 ----
       SMTP_ENABLED: ${SMTP_ENABLED:-false}
       SMTP_HOST: ${SMTP_HOST}
+      # 若该 VPS 出站 25/465/587 被拒（目标 VPS 实测如此），把 SMTP_PORT 设为 2587（Resend 备选端口，
+      # STARTTLS，可与 SMTP_REQUIRE_TLS=true 一起用）；2465 是隐式 TLS，当前代码只在 465 时启用，不可用。
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
       SMTP_USER: ${SMTP_USER}
