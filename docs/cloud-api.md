@@ -1,6 +1,6 @@
 # Mindwtr Cloud API 调用清单
 
-> 对应 `spec.md` **v1.21**。本文回答一个问题：**Notify 到底会调用 Mindwtr Cloud 的哪些接口？**
+> 对应 `spec.md` **v1.22**。本文回答一个问题：**Notify 到底会调用 Mindwtr Cloud 的哪些接口？**
 > 本文讲的是**入站只读 GET**；服务**出站 POST** 的数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)。
 > 按「谁在调用」分四层写清楚，避免把「白名单允许」误当成「服务真的会发」，
 > 也避免把开发期探针 / 测试脚本的请求算到产品运行时头上。

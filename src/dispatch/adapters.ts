@@ -79,7 +79,7 @@ export function renderPlatformText(message: NotifyMessage): string {
     for (const task of message.backlog.tasks.slice(0, 5)) lines.push(`- ${task.title}`);
   }
   if (message.note) lines.push(message.note);
-  lines.push(`打开：${message.links.app}`);
+  // 不追加「打开链接」：Cloud 没有可直接打开的 Web 任务页（v1.22）。
   return lines.join('\n');
 }
 

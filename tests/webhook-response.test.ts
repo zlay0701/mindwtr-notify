@@ -19,7 +19,6 @@ const NOW = Date.parse('2026-11-15T14:00:00Z');
 
 const sampleMessage: NotifyMessage = {
   event: 'test',
-  links: { app: 'https://cloud.example.invalid' },
   sentAt: new Date(NOW).toISOString(),
 };
 

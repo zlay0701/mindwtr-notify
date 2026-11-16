@@ -73,7 +73,6 @@ function testPayload(config: ReturnType<typeof loadConfig>): { message: NotifyMe
   return {
     message: {
       event: 'test',
-      links: { app: config.baseUrl },
       sentAt: new Date().toISOString(),
     },
     email: {

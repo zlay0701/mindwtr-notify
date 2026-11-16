@@ -87,7 +87,7 @@ test('单任务消息带去 Markdown 的描述，且不含敏感字段', () => {
   const item = plan.find(entry => entry.kind === 'due');
   assert.ok(item);
 
-  const message = renderMessage(item, config, new Map([['p1', '项目名称']]));
+  const message = renderMessage(item, new Map([['p1', '项目名称']]));
   assert.equal(message.task?.description, '重要 链接 code');
   for (const field of ['attachments', 'assignedTo', 'contexts', 'tags']) {
     assert.equal(field in (message.task ?? {}), false, `${field} 不应外发`);
@@ -105,7 +105,7 @@ test('汇总类消息不带任务描述', () => {
       overdue: [], startingToday: [], focused: [],
     },
   };
-  const message = renderMessage(fakePlan, config, new Map());
+  const message = renderMessage(fakePlan, new Map());
   assert.equal(message.digest?.dueToday.length, 1);
   assert.equal('description' in message, false);
   assert.equal('task' in message, false);

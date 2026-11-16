@@ -3,7 +3,19 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.21 · 日期：2026-11-16
+> 版本：v1.22 · 日期：2026-11-16
+> **v1.22 变更**：**提醒内容不再带「打开链接」**（改 4 处产品代码，BASE / strict 零改动）。
+> 起因：接收方反馈提醒里的「打开：…」根本打不开 —— 旧的 `links.app` 是
+> `<MINDWTR_BASE_URL>/#/task/<id>`，而 Mindwtr Cloud 没有可直接打开的 Web 任务页，点开即 404。
+> ① `src/dispatch/message.ts`：`NotifyMessage` 移除 `links` 字段与 `taskLink()`，`renderEmail`
+> 去掉正文末尾的 `打开：` 行；`renderMessage` 的 `config` 参数随之删除（已无用途），3 个调用点同步。
+> ② `src/dispatch/adapters.ts`：平台文本（钉钉 / 企微 / 飞书）不再追加 `打开：` 行。
+> ③ `src/cli.ts` 的 `--test-webhook` 测试消息、`src/scheduler.ts` 的系统告警消息同步去掉 `links`。
+> ④ 本地渲染实测：结构化 message 无 `links` 键；平台文本只有「【截止提醒】/任务/截止」；
+> 邮件正文无「打开」且不含 `#/task/` 深链。`npm test` **86/86**（回归断言加在现有用例里：平台文本不得含 `打开：`）。
+> ⑤ 文档：`docs/webhook-payload.md` 字段表去掉 `links` / `links.app` 两行、5 处 JSON 样例、
+> 3 处平台文本样例、§8 隐私表同步，并注明「v1.22 起不再有 links」；`spec.md` §5 样例与 EXT-02 表述更新。
+> 未改：`BASE` 规则、strict 基线、`Dockerfile`、`.env`。详见 §12.13。
 > **v1.21 变更**：**远端邮件发信失败排查：改写 `SMTP_PORT=2587` + 错误码可诊断**（改 1 处产品代码，BASE / strict 零改动）。
 > ① 网络诊断（目标 VPS，宿主机与容器分别测）：`25 / 465 / 587` 全部 `Connection refused`（被 RST，不是超时），
 > 而 Resend 的备选端口 **`2465` / `2587` 可连**，DNS 正常解析到其 AWS ELB。
@@ -388,7 +400,6 @@ healthz_token: ${HEALTHZ_TOKEN}              # M1 · EXT-12【官方无】
                "at": "2026-11-13T09:00:00+08:00", "leadMinutes": 30, "repeatIndex": 1 },
   "digest":  { "dueToday": [ ... ], "overdue": [ ... ], "startingToday": [ ... ] },
   "backlog": { "count": 3, "tasks": [ ... ] },
-  "links":   { "app": "https://your-mindwtr.example.com/#/task/..." },
   "sentAt":  "..."
 }
 ```
@@ -570,7 +581,7 @@ BASE-21/22 均已在真实数据上验证（见头部 v1.5 变更与 §12），�
 | 标记 | 本里程碑交付 |
 |---|---|
 | 【一致】 | `BASE-08/09/10`（morning / evening / weekly 三类摘要及各自 `kind + YYYY-MM-DD` 去重键） |
-| 【增强】 | `EXT-01`（Webhook 通道部分）、`EXT-02`（结构化 JSON 与深链补全） |
+| 【增强】 | `EXT-01`（Webhook 通道部分）、`EXT-02`（结构化 JSON；v1.22 起**不含深链**） |
 | 【官方无】 | `EXT-04/05`（签名与渠道重试）、`EXT-11`（失败告警/恢复）、`EXT-16/17/18`（仅日期 09:00、backlog、静默时段，**默认关闭**） |
 
 **任务清单**
@@ -876,6 +887,30 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 
 **未改**：`BASE` 规则、strict 基线、`.env`（本机 `SMTP_PORT` 仍为 `587`；部署到该 VPS 时需改 `2587`）。
 
+### 12.13 v1.22 移除「打开链接」（2026-11-16）
+
+**问题**：所有提醒末尾都带一行 `打开：<MINDWTR_BASE_URL>/#/task/<id>`，但 Mindwtr Cloud
+没有可直接打开的 Web 任务页，接收方点开就是 404 —— 这行信息不仅无用，还会让人以为是配置错了。
+
+| 位置 | 改动 |
+|---|---|
+| `src/dispatch/message.ts` | `NotifyMessage` 删掉 `links` 字段；删掉 `taskLink()`；`renderEmail` 去掉正文末尾 `打开：` 行；`renderMessage` 的 `config` 参数已无用途，一并删除 |
+| `src/dispatch/adapters.ts` | `renderPlatformText` 不再追加 `打开：` 行（钉钉 / 企微 / 飞书共用） |
+| `src/cli.ts` | `--test-webhook` 的测试消息去掉 `links` |
+| `src/scheduler.ts` | 系统告警消息去掉 `links`；`renderMessage(item, projectNames)` 调用同步 |
+| `tests/*.ts` | 夹具去掉 `links`；`m3.test.ts` 增加断言「平台文本不得包含 `打开：`」 |
+
+**实测**（本地纯函数渲染，不联网、不发消息）：
+结构化消息只有 `event / sentAt / task / trigger`，`HAS_LINKS_FIELD=false`；平台文本为
+`【截止提醒】\n任务：…\n截止：…`，`HAS_OPEN_LINE=false`；邮件正文 `HAS_OPEN_LINE=false`
+且 `HAS_TASK_DEEP_LINK=false`。`npm test` **86/86**。
+
+**兼容性说明**：这是对 `generic` 接收方的**不兼容变更**（少了 `links` 键）。
+项目尚处自用阶段、无外部消费者；`docs/webhook-payload.md` 已注明 v1.22 起不再有 `links`，
+并建议依赖方改用 `task.id` 自行拼接或直接按标题搜索。
+
+**未改**：`BASE` 规则、strict 基线、`Dockerfile`、`.env`。
+
 ---
 
 ## 13. M3 · 可选增强（标签 / 平台适配器 / 双向完成）
@@ -1029,7 +1064,7 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 | 编号 | 标记 | 扩展项 | 依赖 | 关闭后 | 里程碑 |
 |---|---|---|---|---|---|
 | EXT-01 | 【增强】 | 输出到外部 SMTP 邮件 + 通用 Webhook（替代本机通知） | 全部 BASE | `--dry-run` 只打印计划 | M1 邮件 / M2 Webhook |
-| EXT-02 | 【增强】 | 结构化 JSON 消息：`event`、`trigger`、`digest`、`links.app` 深链 | BASE-01…10 | 退化为纯文本 | M2 |
+| EXT-02 | 【增强】 | 结构化 JSON 消息：`event`、`trigger`、`digest`、`task`（v1.22 起**移除 `links.app` 深链**——Cloud 无可用 Web 任务页） | BASE-01…10 | 退化为纯文本 | M2 |
 | EXT-03 | 【官方无】 | 数据最小化：外发不含 `attachments`/`assignedTo`/`contexts`/`tags`；汇总类不含 `description` | BASE-15 | 汇总类也带描述 | M1 |
 | EXT-04 | 【官方无】 | HMAC-SHA256 签名（`X-Notify-Timestamp` + `X-Notify-Signature: sha256=<hex>`，签名串 `${timestamp}.${rawBody}`，5 分钟防重放） | EXT-01 | 不发签名头 | M2 |
 | EXT-05 | 【官方无】 | 多 Webhook URL + 渠道级失败重试（指数退避，最多 3 次） | EXT-01 | 单 URL、不重试 | M2 |

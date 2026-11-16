@@ -1,6 +1,6 @@
 # Notify Webhook 输出数据格式清单
 
-> 对应 `spec.md` **v1.21**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
+> 对应 `spec.md` **v1.22**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
 > 权威实现：`src/dispatch/message.ts`（通用结构）、`src/dispatch/adapters.ts`（平台适配）、
 > `src/dispatch/webhook.ts`（签名与重试）、`src/dispatch/index.ts`（渠道分发）。
 > 本文所有样例都由本地假数据实跑生成，域名一律用 `.invalid` 占位，**不含任何真实凭据或 URL**。
@@ -55,14 +55,16 @@
 | 路径 | 类型 | 必填 | 出现条件 | 说明 |
 |---|---|---|---|---|
 | `event` | `string` | ✅ | 总是 | 事件类型，见 §4 |
-| `links` | `object` | ✅ | 总是 | 固定含一个 `app` 键 |
-| `links.app` | `string` | ✅ | 总是 | 有任务时是深链 `<MINDWTR_BASE_URL>/#/task/<encodeURIComponent(taskId)>`；无任务时就是 `MINDWTR_BASE_URL` |
 | `sentAt` | `string` | ✅ | 总是 | 渲染时刻的 UTC ISO 8601，如 `2026-11-15T13:00:00.000Z` |
 | `task` | `object` | — | 任务级提醒（7 种 `task.*`） | 见 §3.2 |
 | `trigger` | `object` | — | 与 `task` 同时出现 | 见 §3.3 |
 | `digest` | `object` | — | 三类摘要、`date_only` | 见 §3.4 |
 | `backlog` | `object` | — | `backlog` 事件 | 见 §3.5 |
 | `note` | `string` | — | `system` 事件 | 告警正文，失败原因已脱敏 |
+
+> **v1.22 起不再有 `links`**：Mindwtr Cloud 没有可直接打开的 Web 任务页，
+> 旧的 `links.app`（`<MINDWTR_BASE_URL>/#/task/<id>`）在接收方点开是 404，已从所有渠道移除。
+> 若你的接收端之前依赖它，请改成直接搜任务标题，或自己从 `task.id` 拼你认为可用的地址。
 
 ### 3.2 `task`（单任务提醒，EXT-02【增强】结构化）
 
@@ -157,7 +159,6 @@
 ```json
 {
   "event": "task.due",
-  "links": { "app": "https://cloud.example.invalid/#/task/task-abc123" },
   "sentAt": "2026-11-15T13:00:00.000Z",
   "task": {
     "id": "task-abc123",
@@ -185,7 +186,6 @@
 ```json
 {
   "event": "digest_morning",
-  "links": { "app": "https://cloud.example.invalid" },
   "sentAt": "2026-11-15T13:00:00.000Z",
   "digest": {
     "dueToday": [
@@ -205,7 +205,6 @@
 ```json
 {
   "event": "backlog",
-  "links": { "app": "https://cloud.example.invalid" },
   "sentAt": "2026-11-15T13:00:00.000Z",
   "backlog": {
     "count": 1,
@@ -220,9 +219,9 @@
 
 ```json
 { "event": "system", "note": "已连续 3 轮拉取失败，最后错误：[url]",
-  "links": { "app": "https://cloud.example.invalid" }, "sentAt": "2026-11-15T13:00:00.000Z" }
+  "sentAt": "2026-11-15T13:00:00.000Z" }
 
-{ "event": "test", "links": { "app": "https://cloud.example.invalid" },
+{ "event": "test",
   "sentAt": "2026-11-15T13:00:00.000Z" }
 ```
 
@@ -254,7 +253,7 @@
 
 平台 body 由 `renderPlatformText()` 把同一份 `NotifyMessage` 渲染成中文纯文本。文本规则：
 
-- 首行固定 `【事件中文标签】`；末行固定 `打开：<links.app>`。
+- 首行固定 `【事件中文标签】`；**不输出任何链接**（v1.22 起，Cloud 没有可打开的 Web 任务页）。
 - 任务级：依次输出任务标题、截止时间、开始时间、项目名、描述（**有才输出**）。
 - 摘要：只输出「今日到期 N 条 / 逾期 N 条」，然后列 `dueToday + overdue` 的**前 5 条**标题；
   `startingToday` / `focused` **不会**出现在平台文本里（结构化 `generic` 通道才有）。
@@ -275,7 +274,7 @@ Content-Type: application/json
   "msgtype": "markdown",
   "markdown": {
     "title": "Notify 提醒",
-    "text": "【截止提醒】\n任务：示例任务\n截止：2026-11-15T15:00:00.000Z\n开始：2026-11-15T13:00:00.000Z\n项目：示例项目\n描述：重点 ：完成联调\n打开：https://cloud.example.invalid/#/task/task-abc123"
+    "text": "【截止提醒】\n任务：示例任务\n截止：2026-11-15T15:00:00.000Z\n开始：2026-11-15T13:00:00.000Z\n项目：示例项目\n描述：重点 ：完成联调"
   }
 }
 ```
@@ -288,7 +287,7 @@ Content-Type: application/json
 {
   "msgtype": "text",
   "text": {
-    "content": "【截止提醒】\n任务：示例任务\n截止：2026-11-15T15:00:00.000Z\n开始：2026-11-15T13:00:00.000Z\n项目：示例项目\n描述：重点 ：完成联调\n打开：https://cloud.example.invalid/#/task/task-abc123"
+    "content": "【截止提醒】\n任务：示例任务\n截止：2026-11-15T15:00:00.000Z\n开始：2026-11-15T13:00:00.000Z\n项目：示例项目\n描述：重点 ：完成联调"
   }
 }
 ```
@@ -301,7 +300,7 @@ Content-Type: application/json
 ```json
 {
   "msg_type": "text",
-  "content": { "text": "【截止提醒】\n任务：示例任务\n…\n打开：https://cloud.example.invalid/#/task/task-abc123" },
+  "content": { "text": "【截止提醒】\n任务：示例任务\n…" },
   "timestamp": "1794747600",
   "sign": "<base64-sign>"
 }
@@ -321,7 +320,7 @@ Content-Type: application/json
 | `description` | **只有单任务提醒**带（去 Markdown 后）；摘要、backlog、平台文本里的任务清单都不带 |
 | 摘要任务白名单 | 只有 `id` / `title` / `status` / `dueDate` / `startTime` |
 | 平台文本条数上限 | 摘要与 backlog 各最多列 **5 条**标题 |
-| `links.app` | 只含 `MINDWTR_BASE_URL` 与任务 id，不含 token |
+| 链接 | v1.22 起**不再外发任何链接**（旧 `links.app` 已移除：它指向的 Web 任务页打不开，点开是 404） |
 | 凭据 | `MINDWTR_TOKEN` / `SMTP_PASS` / `WEBHOOK_SECRET` 从不出现在 body 或日志 |
 | URL 脱敏 | 状态库只记 `webhook:N`，日志里的 URL 统一变成 `[url]` |
 

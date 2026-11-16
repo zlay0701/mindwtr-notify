@@ -1,6 +1,6 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-16 11:45（v1.21 远端邮件发信排查）· 对应 `spec.md` **v1.21**
+> 生成时间：2026-11-13 · 最后整理：2026-11-16 12:25（v1.22 移除打开链接）· 对应 `spec.md` **v1.22**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
@@ -222,6 +222,12 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 顺带修 `describeError`：message 为空时回退 `error.code`，报错从「未知错误」变成
 `网络/系统错误（ECONNREFUSED）`；新增 1 个用例，`npm test` **86/86**。
 详见 §4 第 23 条与 `spec.md` §12.12。
+
+**v1.22 移除「打开链接」（2026-11-16 12:25）**：所有提醒（邮件 / 平台文本 / 结构化消息）不再带
+`打开：<baseUrl>/#/task/<id>` —— Cloud 没有可打开的 Web 任务页，点开是 404。
+`NotifyMessage` 删掉 `links` 字段，`renderMessage` 的 `config` 参数随之删除。
+`npm test` **86/86**。**这是对 `generic` 接收方的不兼容变更**，`docs/webhook-payload.md` 已注明。
+详见 §4 第 24 条与 `spec.md` §12.13。
 
 ---
 
@@ -458,6 +464,16 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
     - 文档：配置参考 §4.6、部署指南检查清单第 6 条与故障表、Coolify 常见坑、README 检查清单。
 
 
+24. **v1.22 移除「打开链接」（2026-11-16）**：改 4 处产品代码，BASE / strict 零改动。
+    - 起因：提醒末尾的 `打开：<baseUrl>/#/task/<id>` 点开是 404 —— Cloud 没有可打开的 Web 任务页。
+    - 改动：`NotifyMessage` 删 `links` 字段与 `taskLink()`；`renderEmail` 去掉 `打开：` 行；
+      `renderPlatformText` 不再追加该行；`--test-webhook` 与系统告警消息同步去掉 `links`；
+      `renderMessage` 的 `config` 参数已无用途，一并删除（3 个调用点同步）。
+    - 实测：结构化消息 `HAS_LINKS_FIELD=false`；平台文本与邮件正文 `HAS_OPEN_LINE=false`；
+      邮件不含 `#/task/` 深链。`npm test` **86/86**（`m3.test.ts` 加了「不得含 `打开：`」断言）。
+    - 文档：`docs/webhook-payload.md` 字段表 / 5 处 JSON 样例 / 3 处平台文本样例 / §8 隐私表；
+      `spec.md` §5 样例与 EXT-02 表述。**这是对 `generic` 接收方的不兼容变更**，已在文档注明。
+
 ---
 
 ## 5. 未完成清单（按优先级；已完成项列在表后）
@@ -648,6 +664,8 @@ NODE_USE_ENV_PROXY=1 npm run dry-run
   镜像默认 UTC，只配后者会让提醒晚 8 小时且不报错。两份编排已默认 `TZ: ${TZ:-Asia/Shanghai}`；
   改的时候别写死值（`environment` 优先级高于 `env_file`），也别给 `TZ` 加行尾注释。
   排查「时间差 8 小时」先看容器内 `Intl.DateTimeFormat().resolvedOptions().timeZone`。
+- **别再往消息里塞链接**：Cloud 没有可直接打开的 Web 任务页，`links.app` 已移除（v1.22）。
+  若以后要加回，必须先确认目标地址真能打开，否则接收方点开 404，比没有链接更糟。
 - **VPS 发邮件要换端口**：目标 VPS 出站 `25/465/587` 被 RST，日志是
   `网络/系统错误（ECONNREFUSED）`。用 `SMTP_PORT=2587`（Resend 备选、STARTTLS）即可；
   别用 `2465`（隐式 TLS，当前代码只在 `SMTP_PORT=465` 时启用隐式 TLS）。

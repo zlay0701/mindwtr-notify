@@ -130,7 +130,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     const message: NotifyMessage = {
       event: 'system',
       note: text,
-      links: { app: config.baseUrl },
       sentAt: new Date(now).toISOString(),
     };
     const email: EmailContent = {
@@ -237,7 +236,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       result.due += 1;
       if (dryRun) continue;
 
-      const message = renderMessage(item, config, projectNames);
+      const message = renderMessage(item, projectNames);
       const email = renderEmail(item, message, config);
       let deliveredAny = false;
 

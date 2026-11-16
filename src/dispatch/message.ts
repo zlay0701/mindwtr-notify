@@ -38,7 +38,6 @@ export interface NotifyMessage {
   backlog?: PlannedNotification['backlog'];
   /** 系统告警正文（M3：平台适配器需要把告警内容显示出来）。 */
   note?: string;
-  links: { app: string };
   sentAt: string;
 }
 
@@ -53,23 +52,21 @@ export function stripMarkdown(text: string): string {
     .trim();
 }
 
-/** 任务链接：Web 端深链约定为 <baseUrl>/#/task/<id>，可在配置里覆盖基础地址。 */
-function taskLink(config: NotifyConfig, taskId?: string): string {
-  return taskId ? `${config.baseUrl}/#/task/${encodeURIComponent(taskId)}` : config.baseUrl;
-}
-
 /**
  * 渲染结构化消息。
+ *
+ * 刻意**不生成任何「打开链接」**（v1.22 起）：Mindwtr Cloud 没有可直接打开的
+ * Web 端任务页，拼出来的 `/#/task/<id>` 在接收方点开是 404，反而误导用户。
+ * 消息只保留「是什么任务、什么时候、哪个项目」这些确实可用的信息。
+ *
  * @param projectNames 项目 id → 名称的映射，来自 Cloud API 项目缓存
  */
 export function renderMessage(
   plan: PlannedNotification,
-  config: NotifyConfig,
   projectNames: ReadonlyMap<string, string>,
 ): NotifyMessage {
   const message: NotifyMessage = {
     event: plan.event,
-    links: { app: taskLink(config, plan.taskId) },
     sentAt: new Date().toISOString(),
   };
 
@@ -149,7 +146,6 @@ export function renderEmail(
   if (message.backlog) {
     parts.push(`共 ${message.backlog.count} 条逾期未完成任务：\n${linesForTasks(message.backlog.tasks)}`);
   }
-  parts.push(`\n打开：${message.links.app}`);
 
   const text = parts.join('\n');
   const escaped = text

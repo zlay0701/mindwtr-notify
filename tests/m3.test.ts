@@ -36,7 +36,6 @@ const CHANNELS = ['email', 'webhook:0'];
 const sampleMessage: NotifyMessage = {
   event: 'task.due',
   task: { id: 'task-1', title: '写周报', status: 'next', dueDate: '2026-11-13T09:00:00Z' },
-  links: { app: 'https://example.invalid/#/task/task-1' },
   sentAt: new Date(NOW).toISOString(),
 };
 
@@ -135,10 +134,11 @@ test('企业微信使用 text 格式，无需签名', () => {
 test('平台消息渲染：系统告警的 note 会显示出来', () => {
   const text = renderPlatformText({
     event: 'system', note: 'Cloud API 连续失败 3 次',
-    links: { app: 'https://example.invalid' }, sentAt: new Date(NOW).toISOString(),
+    sentAt: new Date(NOW).toISOString(),
   });
   assert.match(text, /Cloud API 连续失败 3 次/);
   assert.match(text, /系统通知/);
+  assert.equal(text.includes('打开：'), false, '不再输出打不开的链接');
 });
 
 test('适配器投递复用 POST 重试，失败两次后第三次成功', async () => {
