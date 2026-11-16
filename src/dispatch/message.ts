@@ -34,6 +34,8 @@ export interface NotifyMessage {
     description?: string;
   };
   trigger?: PlannedNotification['trigger'];
+  /** 项目回顾（BASE-07）用：只带 id 与标题。 */
+  project?: { id: string; title?: string };
   digest?: PlannedNotification['digest'];
   backlog?: PlannedNotification['backlog'];
   /** 系统告警正文（M3：平台适配器需要把告警内容显示出来）。 */
@@ -86,12 +88,17 @@ export function renderMessage(
         : {}),
       ...(typeof task.description === 'string' ? { description: stripMarkdown(task.description) } : {}),
     };
-    message.trigger = plan.trigger;
   }
 
   // 汇总类：只有摘要/清单，明确不带 description。
   if (plan.digest) message.digest = plan.digest;
   if (plan.backlog) message.backlog = plan.backlog;
+
+  // 项目回顾（BASE-07）：只带项目 id 与标题，项目其它字段一律不外发。
+  if (plan.project) message.project = plan.project;
+
+  // 触发点信息统一挂载：任务级与项目回顾都有，汇总类没有。
+  if (plan.trigger) message.trigger = plan.trigger;
 
   return message;
 }
@@ -109,7 +116,8 @@ function subjectFor(plan: PlannedNotification, message: NotifyMessage): string {
     due: '截止提醒', 'due-advance': '即将截止', 'due-repeat': '截止催办',
     review: '回顾提醒', 'project-review': '项目回顾',
   };
-  return `[Notify] ${labels[plan.kind] ?? '提醒'}：${message.task?.title ?? ''}`;
+  const subjectName = message.task?.title ?? message.project?.title ?? '';
+  return `[Notify] ${labels[plan.kind] ?? '提醒'}：${subjectName}`;
 }
 
 /** 把任务摘要列表渲染成纯文本行，汇总类通知共用。 */
@@ -136,6 +144,10 @@ export function renderEmail(
     if (message.task.startTime) parts.push(`开始：${message.task.startTime}`);
     if (message.task.projectName) parts.push(`项目：${message.task.projectName}`);
     if (message.task.description) parts.push(`\n描述：${message.task.description}`);
+  }
+  if (message.project) {
+    parts.push(`项目：${message.project.title ?? message.project.id}`);
+    if (message.trigger?.at) parts.push(`回顾时间：${message.trigger.at}`);
   }
   if (message.digest) {
     parts.push(`今日到期：\n${linesForTasks(message.digest.dueToday)}`);

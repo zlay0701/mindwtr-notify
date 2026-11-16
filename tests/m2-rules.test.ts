@@ -11,7 +11,7 @@ import { loadConfig, validateConfig } from '../src/config.ts';
 import { buildPlan } from '../src/rules/plan.ts';
 import { buildDigestPayload } from '../src/rules/plan.ts';
 import { getZonedParts, zonedTimeToEpoch } from '../src/rules/time.ts';
-import type { MindwtrTask } from '../src/types.ts';
+import type { MindwtrProject, MindwtrTask } from '../src/types.ts';
 
 /** 构造测试配置：注入假的 token，不读本机 .env。 */
 function testConfig(overrides: Record<string, string> = {}) {
@@ -24,6 +24,11 @@ function testConfig(overrides: Record<string, string> = {}) {
 /** 构造一条最小任务。 */
 function makeTask(id: string, fields: Partial<MindwtrTask> = {}): MindwtrTask {
   return { id, status: 'next', ...fields };
+}
+
+/** 构造一个最小项目（BASE-07 项目回顾用）。 */
+function makeProject(id: string, fields: Partial<MindwtrProject> = {}): MindwtrProject {
+  return { id, title: `项目-${id}`, status: 'active', ...fields };
 }
 
 /** 固定的 UTC 时刻：2026-11-13 01:00Z，对应北京时间 09:00。 */
@@ -85,6 +90,40 @@ test('摘要内容：今日到期 / 已逾期 / 今日开始 / 专注任务分�
   assert.deepEqual(payload.focused.map(item => item.id), ['d']);
   // 摘要条目不含 description 等正文字段（EXT-03）。
   assert.equal('description' in payload.dueToday[0], false);
+});
+
+test('BASE-07 项目回顾：reviewAt 生成 project-review，归档与仅日期不生成', () => {
+  const projects = new Map<string, MindwtrProject>([
+    ['p1', makeProject('p1', { reviewAt: '2026-11-13T03:30:00Z' })],
+    // 归档项目不提醒
+    ['p2', makeProject('p2', { reviewAt: '2026-11-13T03:30:00Z', status: 'archived' })],
+    // 仅日期不提醒（BASE-22）
+    ['p3', makeProject('p3', { reviewAt: '2026-11-13' })],
+  ]);
+  const plan = buildPlan({
+    tasks: [], projects, config: testConfig(), now: NOW, strict: false,
+    store: { getMeta: () => null },
+  });
+
+  const reviews = plan.filter(item => item.kind === 'project-review');
+  assert.equal(reviews.length, 1, '只有未归档且带时刻的项目产生回顾');
+  assert.equal(reviews[0].event, 'task.project_review');
+  assert.equal(reviews[0].project?.title, '项目-p1');
+  assert.equal(reviews[0].projectId, 'p1');
+  // BASE-29：每项目 + ISO 时间戳
+  assert.equal(reviews[0].dedupeKey, 'project-review:p1:2026-11-13T03:30:00.000Z');
+  assert.equal(reviews[0].trigger?.type, 'project-review');
+});
+
+test('BASE-07 项目回顾受 include_review 开关控制（BASE-20）', () => {
+  const projects = new Map([['p1', makeProject('p1', { reviewAt: '2026-11-13T03:30:00Z' })]]);
+  const config = testConfig();
+  config.officialRules.includeReview = false;
+  const plan = buildPlan({
+    tasks: [], projects, config, now: NOW, strict: false,
+    store: { getMeta: () => null },
+  });
+  assert.equal(plan.some(item => item.kind === 'project-review'), false);
 });
 
 test('晨间简报在触发窗口内生成，去重键是 kind + 日期（BASE-29）', () => {

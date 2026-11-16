@@ -1,6 +1,6 @@
 # Notify Webhook 输出数据格式清单
 
-> 对应 `spec.md` **v1.23**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
+> 对应 `spec.md` **v1.24**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
 > 权威实现：`src/dispatch/message.ts`（通用结构）、`src/dispatch/adapters.ts`（平台适配）、
 > `src/dispatch/webhook.ts`（签名与重试）、`src/dispatch/index.ts`（渠道分发）。
 > 本文所有样例都由本地假数据实跑生成，域名一律用 `.invalid` 占位，**不含任何真实凭据或 URL**。
@@ -56,8 +56,9 @@
 |---|---|---|---|---|
 | `event` | `string` | ✅ | 总是 | 事件类型，见 §4 |
 | `sentAt` | `string` | ✅ | 总是 | 渲染时刻的 UTC ISO 8601，如 `2026-11-15T13:00:00.000Z` |
-| `task` | `object` | — | 任务级提醒（7 种 `task.*`） | 见 §3.2 |
-| `trigger` | `object` | — | 与 `task` 同时出现 | 见 §3.3 |
+| `task` | `object` | — | 任务级提醒（6 种，**不含** `task.project_review`） | 见 §3.2 |
+| `project` | `object` | — | 仅 `task.project_review`（BASE-07 项目回顾） | 只含 `id` 与 `title`，见 §3.6 |
+| `trigger` | `object` | — | 与 `task` 或 `project` 同时出现 | 见 §3.3 |
 | `digest` | `object` | — | 三类摘要、`date_only` | 见 §3.4 |
 | `backlog` | `object` | — | `backlog` 事件 | 见 §3.5 |
 | `note` | `string` | — | `system` 事件 | 告警正文，失败原因已脱敏 |
@@ -124,6 +125,16 @@
 | `count` | `number` | 逾期任务总数 |
 | `tasks` | `TaskSummary[]` | 逾期任务清单（字段白名单同上） |
 
+### 3.6 `project`（项目回顾，BASE-07）
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `id` | `string` | ✅ | 项目 id |
+| `title` | `string` | — | 项目标题（项目没有标题时该键不出现） |
+
+> 只外发这两个字段：项目状态、成员、标签等一律不带（EXT-03 数据最小化）。
+> 项目回顾**没有 `task` 块**，用 `project` + `trigger` 表达；`trigger.type` 固定为 `project-review`。
+
 ---
 
 ## 4. `event` 全集（14 种）
@@ -136,7 +147,7 @@
 | `task.due_advance` | 截止前的提前提醒 | `task` + `trigger(leadMinutes)` | BASE 规则 |
 | `task.due_repeat` | 截止后重复催办 | `task` + `trigger(repeatIndex)` | BASE 规则 |
 | `task.review` | 任务回顾时刻 | `task` + `trigger` | BASE 规则 |
-| `task.project_review` | 项目回顾时刻 | `task` + `trigger` | BASE 规则 |
+| `task.project_review` | 项目回顾时刻 | `project` + `trigger` | BASE-07【一致】 |
 | `digest_morning` | 每日 09:00（默认开） | `digest` | BASE-08【一致】 |
 | `digest_evening` | 每日 20:00（默认开） | `digest` | BASE-09【一致】 |
 | `digest_weekly` | 每周日 18:00（默认开） | `digest` | BASE-10【一致】 |
@@ -147,8 +158,7 @@
 
 > 三类摘要共用**完全相同**的 `digest` 结构，只有 `event` 不同；
 > `strict` 模式下 `date_only` / `backlog` 不会产生，事件集合只剩前 7 + 3 + `system` / `test`。
-> 平台适配器 `eventLabel` 覆盖了 13 种，`task.project_review` 没有中文标签，
-> 在钉钉 / 企微 / 飞书文本里会**原样显示** `task.project_review`。
+> 平台适配器 `eventLabel` 覆盖了全部 14 种事件（v1.24 补齐 `task.project_review` → 「项目回顾」）。
 
 ---
 
@@ -225,6 +235,19 @@
   "sentAt": "2026-11-15T13:00:00.000Z" }
 ```
 
+### 5.5 项目回顾 `task.project_review`
+
+```json
+{
+  "event": "task.project_review",
+  "sentAt": "2026-11-16T15:00:00.000Z",
+  "project": { "id": "proj-1", "title": "示例项目" },
+  "trigger": { "type": "project-review", "at": "2026-11-16T15:00:00.000Z" }
+}
+```
+
+> 项目已归档 / 已删除、或 `reviewAt` 只写日期（`2026-11-16`）时，不会产生这条事件。
+
 ---
 
 ## 6. `generic` 请求头与验签
@@ -259,6 +282,7 @@
   `startingToday` / `focused` **不会**出现在平台文本里（结构化 `generic` 通道才有）。
 - backlog：输出总数，再列前 5 条标题。
 - `system`：输出 `note` 正文。
+- 项目回顾：输出项目名与回顾时间（`项目：…` / `回顾时间：…`），没有任务块。
 
 ### 7.1 钉钉 `dingtalk`
 

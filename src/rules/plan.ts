@@ -41,6 +41,9 @@ export interface PlannedNotification {
   dedupeKey: string;
   taskId?: string;
   task?: MindwtrTask;
+  /** 项目回顾（BASE-07）用；只带 id 与标题，不外发项目其它字段。 */
+  projectId?: string;
+  project?: { id: string; title?: string };
   trigger?: {
     type: string;
     at: string;
@@ -124,7 +127,50 @@ function buildTaskDedupeKey(task: MindwtrTask, trigger: ReminderTrigger): string
 }
 
 // ---------------------------------------------------------------------------
-// 二、三类摘要（BASE-08 / 09 / 10）
+// 二、项目回顾（BASE-07）
+// ---------------------------------------------------------------------------
+
+/**
+ * 项目回顾触发点（BASE-07）：项目的 `reviewAt` 到点提醒。
+ *
+ * 三个容易写错的点：
+ *   1. 项目回顾**不受任务策略影响**（没有 reminderPolicy 可读），只受设备级「回顾」开关控制
+ *      （BASE-20 的 include_review），所以这里只判 `includeReview`；
+ *   2. 仅日期（`2026-11-16`）不排提醒，与任务侧复用同一个 `hasTimeComponent`（BASE-22）；
+ *   3. 去重键按官方语义是「每项目 + ISO 时间戳」（BASE-29），所以改了回顾时间会重新提醒一次。
+ *
+ * 已删除 / 已归档的项目不提醒 —— 与任务侧的归档过滤保持一致。
+ */
+function fromProjectReviews(options: BuildPlanOptions): PlannedNotification[] {
+  const { projects, config } = options;
+  if (!config.officialRules.includeReview) return [];
+
+  const result: PlannedNotification[] = [];
+  for (const project of projects.values()) {
+    if (project.status === 'archived' || project.deletedAt) continue;
+    if (!hasTimeComponent(project.reviewAt)) continue;
+
+    const reviewAt = Date.parse(String(project.reviewAt));
+    if (!Number.isFinite(reviewAt)) continue;
+
+    result.push({
+      event: 'task.project_review',
+      kind: 'project-review',
+      scheduledAt: reviewAt,
+      dedupeKey: `project-review:${project.id}:${new Date(reviewAt).toISOString()}`,
+      projectId: project.id,
+      project: {
+        id: project.id,
+        ...(typeof project.title === 'string' ? { title: project.title } : {}),
+      },
+      trigger: { type: 'project-review', at: new Date(reviewAt).toISOString() },
+    });
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// 三、三类摘要（BASE-08 / 09 / 10）
 // ---------------------------------------------------------------------------
 
 /** 汇总今日到期、已逾期、今日开始、专注任务。所有日期都按配置时区判定。 */
@@ -191,7 +237,7 @@ function fromDigests(options: BuildPlanOptions): PlannedNotification[] {
 }
 
 // ---------------------------------------------------------------------------
-// 三、A 类扩展（EXT-16 / 17 / 18），默认关闭
+// 四、A 类扩展（EXT-16 / 17 / 18），默认关闭
 // ---------------------------------------------------------------------------
 
 /**
@@ -286,7 +332,7 @@ function applyQuietHours(plan: PlannedNotification[], options: BuildPlanOptions)
 }
 
 // ---------------------------------------------------------------------------
-// 四、统一入口
+// 五、统一入口
 // ---------------------------------------------------------------------------
 
 /**
@@ -295,7 +341,8 @@ function applyQuietHours(plan: PlannedNotification[], options: BuildPlanOptions)
  */
 export function buildPlan(options: BuildPlanOptions): PlannedNotification[] {
   // 任务级与摘要属于【一致】基线，任何模式下都生成。
-  const plan = [...fromTaskTriggers(options), ...fromDigests(options)];
+  // 任务级与项目回顾同属 BASE 基线，strict 下也必须生成。
+  const plan = [...fromTaskTriggers(options), ...fromProjectReviews(options), ...fromDigests(options)];
 
   if (!options.strict) {
     plan.push(...fromDateOnly(options));

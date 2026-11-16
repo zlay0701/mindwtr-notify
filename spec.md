@@ -3,14 +3,31 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.23 · 日期：2026-11-16
+> 版本：v1.24 · 日期：2026-11-16
+> **v1.24 变更**：**补齐项目回顾提醒（BASE-07）**（改 3 个源文件 + 2 个用例，BASE 规则与 strict 基线未变动）。
+> 背景：v1.23 整理规则手册时发现 `project-review` 只有类型、标签与策略判定，没有生成代码，
+> 与 §15「已实现」不一致；本次选择「补实现」而不是改文档。
+> ① `src/rules/plan.ts` 新增 `fromProjectReviews`：遍历项目缓存 → 排除 `status=archived` / `deletedAt`
+> → 用 `hasTimeComponent` 判定带时刻（BASE-22，仅日期不排）→ 去重键 `project-review:<projectId>:<ISO>`（BASE-29）；
+> `PlannedNotification` 增加 `projectId` / `project{id,title}`，`buildPlan` 把它并入基线（strict 下也生成）。
+> ② `src/dispatch/message.ts`：`NotifyMessage` 增加 `project`（只含 id 与标题）；邮件主题在没有任务标题时
+> 回退项目标题；正文输出「项目：…」「回顾时间：…」。`trigger` 的挂载从「仅任务」改为「有就挂」，
+> 项目回顾因此也带 `trigger.type=project-review`。
+> ③ `src/dispatch/adapters.ts`：`eventLabel` 补 `task.project_review` →「项目回顾」（此前会原样显示英文），
+> 平台文本输出项目行。
+> ④ `tests/m2-rules.test.ts` 新增 2 个用例（归档/仅日期不生成、`include_review=false` 不生成），`npm test` **88/88**。
+> ⑤ 真实数据限制：测试实例项目接口**没有 `reviewAt` 键**，故真实数据上暂无法验证；字段出现即自动生效。
+> `dry-run` 计划条数无变化（当前无项目带该字段）。
+> 文档：`docs/rules.md`（§2.1 改为已实现、§7 加排查行、§8 边界改写）、
+> `docs/webhook-payload.md`（顶层加 `project`、事件表修正、新增 §3.6 与 §5.5、`eventLabel` 说明改为 14 种）。
 > **v1.23 变更**：**新增可读版《提醒规则手册》**（纯文档，产品代码零改动）。
 > 用户问「文档在哪、什么情况下会提醒」，而原有规则只以 BASE/EXT 编号表的形式散在 §15/§16，
 > 不适合日常查阅。新增 `docs/rules.md`：五道判定关（状态活跃 / 带时刻 / 策略允许 / 开关与标签 / 补发窗口）、
 > 全部触发类型（含时刻、生成条件、开关、编号）、策略语义（含 `skip` 不撤回顾、单一策略抑制普通提醒两条易错点）、
 > 提前量与重复次数上限表、补发窗口与去重语义、标签路由、**「为什么没提醒」排查表**、已知边界与索引。
 > 同时如实记录一处文档与代码不一致：`project-review`（BASE-07）类型与策略已支持，
-> 但 `src/rules/plan.ts` 只遍历任务、没有读项目 `reviewAt` 的代码，**当前不会触发**，待定补实现或标注未实现。
+> 但 `src/rules/plan.ts` 只遍历任务、没有读项目 `reviewAt` 的代码，**当时不会触发**，待定补实现或标注未实现
+> （**v1.24 已补实现，见 §12.15**）。
 > 另如实标注摘要时刻（09:00 / 20:00 / 周日 18:00）在 `src/config.ts` 里写死、环境变量只能开关。
 > `README.md` 文档导航与目录结构、`HANDOFF.md` §6 文件地图同步；`npm test` 仍 **86/86**。详见 §12.14。
 > **v1.22 变更**：**提醒内容不再带「打开链接」**（改 4 处产品代码，BASE / strict 零改动）。
@@ -928,19 +945,39 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 | 章节 | 内容 |
 |---|---|
 | §1 五道关 | 状态活跃 → 带时刻 → 策略允许 → 开关/标签 → 补发窗口；每条给出不满足时的结果与编号 |
-| §2 触发类型 | 任务级 7 种（含未实现的 `project-review`）、摘要 3 种、默认关闭扩展 2 种（`date_only` / `backlog`）+ `system` / `test`；静默时段只顺延不新增 |
+| §2 触发类型 | 任务级 7 种（`project-review` 当时标为未实现，v1.24 已补齐）、摘要 3 种、默认关闭扩展 2 种（`date_only` / `backlog`）+ `system` / `test`；静默时段只顺延不新增 |
 | §3 策略 | `send` / `skip` / `start` / `due` / `inherit` 各发什么；两条易错点（`skip` 不撤回顾、单一策略抑制普通提醒） |
 | §4 时间 | 带时刻正则、仅日期不提醒、提前量日历日回退、重复次数 `min(8, floor(120/间隔))` 对照表、时区成对配置 |
 | §5 窗口与去重 | 5 分钟补发、`catch_up` 开关、四类去重键、重启不重发但删卷会重发、渠道级独立 |
 | §6 标签路由 | `#silent` / `#notify-email` / `#notify-webhook`，默认关闭 |
 | §7 排查 | 10 行「现象 → 原因 → 怎么确认」，含收集箱也会提醒、差 8 小时、超窗口等实际踩过的坑 |
-| §8 已知边界 | `project-review` 未实现、BASE-11 客户端能力不模拟、平台文本截断、摘要时刻不可配 |
+| §8 已知边界 | `project-review` 当时未实现（v1.24 已补齐）、BASE-11 客户端能力不模拟、平台文本截断、摘要时刻不可配 |
 
 **记录的一处不一致**：`spec.md` BASE-07 标为已实现，但 `src/rules/plan.ts` 只遍历任务，
 `projects` 仅用于归档过滤，没有任何代码读项目 `reviewAt` → **`project-review` 从不触发**。
-处理方式待定（补实现 / 在 §15 标注未实现），本文档先在 §2.1 与 §8 如实标注。
+处理方式待定（补实现 / 在 §15 标注未实现），本文档先在 §2.1 与 §8 如实标注。（**v1.24 已补齐实现**，见 §12.15。）
 
 **未改**：产品代码、`BASE` 规则、strict 基线、`Dockerfile`、`.env`。`npm test` **86/86**。
+
+### 12.15 v1.24 补齐项目回顾提醒（BASE-07）
+
+| 位置 | 改动 |
+|---|---|
+| `src/rules/plan.ts` | 新增 `fromProjectReviews`；`PlannedNotification` 增加 `projectId` / `project{id,title}`；`buildPlan` 并入基线（strict 下也生成） |
+| `src/dispatch/message.ts` | `NotifyMessage` 增加 `project`；主题回退项目标题；正文输出「项目：…」「回顾时间：…」；`trigger` 改为「有就挂」 |
+| `src/dispatch/adapters.ts` | `eventLabel` 补 `task.project_review` →「项目回顾」；平台文本输出项目行 |
+| `tests/m2-rules.test.ts` | 新增 2 个用例：归档 / 仅日期不生成；`include_review=false` 不生成 |
+
+**语义要点**：项目回顾只受设备级「回顾」开关 `include_review`（BASE-20）控制 —— 项目没有
+`reminderPolicy` 字段，因此不参与任务策略判定；`reviewAt` 只写日期时不排（BASE-22）；
+去重键是「每项目 + ISO 时间戳」，所以改了回顾时间会重新提醒一次。
+
+**真实数据限制**：测试实例 `GET /v1/projects` 返回的字段是
+`color / createdAt / id / isFocused / isSequential / order / rev / revBy / status / supportNotes / tagIds / title / updatedAt`
+—— **没有 `reviewAt`**，所以真实数据上暂时无法端到端验证；字段一旦出现即自动生效，
+`dry-run` 当前计划条数与之前一致（6 条）。
+
+**未改**：BASE 规则数值、strict 基线、`Dockerfile`、`.env`。`npm test` **88/88**。
 
 ---
 

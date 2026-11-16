@@ -45,6 +45,7 @@ function eventLabel(event: string): string {
     'task.start': '开始提醒',
     'task.start_advance': '即将开始',
     'task.review': '回顾提醒',
+    'task.project_review': '项目回顾',
     digest_morning: '晨间简报',
     digest_evening: '晚间回顾',
     digest_weekly: '每周回顾',
@@ -66,6 +67,10 @@ export function renderPlatformText(message: NotifyMessage): string {
     if (message.task.startTime) lines.push(`开始：${message.task.startTime}`);
     if (message.task.projectName) lines.push(`项目：${message.task.projectName}`);
     if (message.task.description) lines.push(`描述：${message.task.description}`);
+  }
+  if (message.project) {
+    lines.push(`项目：${message.project.title ?? message.project.id}`);
+    if (message.trigger?.at) lines.push(`回顾时间：${message.trigger.at}`);
   }
   if (message.digest) {
     const digest = message.digest;
