@@ -1,6 +1,6 @@
 # Notify 部署指南（Docker Compose）
 
-> 对应 `spec.md` **v1.20**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
+> 对应 `spec.md` **v1.21**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
 > 每个配置项的含义见 [配置参考](configuration.md)，管理页怎么用见 [页面操作手册](admin-guide.md)，
 > 调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，
 > 出站 POST 的数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)，
@@ -121,7 +121,7 @@ docker compose logs --tail 20 mindwtr-notify        # 首轮「计划 N 条 / �
 | 3 | 校验只用 `config --quiet` | 见上方红色警告 |
 | 4 | `replicas: 1`，且没有第二份 Compose 指向同一状态库卷 | 多实例会重复投递 |
 | 5 | `NOTIFY_STATE_PATH` 仍指向卷 `/app/data` | 容器根文件系统 `read_only: true`，改到别处会写失败 |
-| 6 | 若用邮件渠道，VPS 出站 587 / 465 已放行 | 已有 VPS 实测 `ECONNREFUSED`（宿主机直连同样如此），属网络策略，需放行端口或改中继 |
+| 6 | 若用邮件渠道：VPS 出站 587 / 465 已放行，**或改用 `SMTP_PORT=2587`** | 已有 VPS 实测 25/465/587 全部 `ECONNREFUSED`（宿主机直连同样如此）；Resend 的 2587 可通，实测能发信 |
 | 7 | `TZ` 与 `NOTIFY_TIMEZONE` 一致（默认都是 `Asia/Shanghai`） | 前者决定「不带时区」的日期怎么解析、后者决定时刻怎么渲染；不一致会差 8 小时且不报错 |
 
 ---
@@ -268,7 +268,7 @@ docker compose up -d
 | `/healthz` 返回 401 | `.env` 的 `HEALTHZ_TOKEN` | 非空即需鉴权：`curl -H 'Authorization: Bearer <token>' ...`；healthcheck 不受影响 |
 | 日志「计划 0 条」 | 云端任务是否带时间字段 | 生产数据若全无 `dueDate` / `startTime`，任务级提醒本就为 0；摘要类仍会按时刻触发，属正常 |
 | 「0 条任务 + fetch failed」 | `curl <cloud>/health`、网络 / 代理 | VPS 上通常是网络或 DNS；本机开发期是代理端口问题（见 §2） |
-| 邮件投递失败 `ECONNREFUSED` | 宿主机 `nc -vz <smtp-host> 587` | VPS 出站被拦，属网络策略；放行 587/465 或改用中继，代码无需改 |
+| 邮件投递失败 `ECONNREFUSED` | 宿主机 `nc -vz <smtp-host> 587`，再试 `2587` | VPS 出站被拦（25/465/587 被 RST）。**Resend 把 `SMTP_PORT` 改成 `2587`（STARTTLS）即可发信，无需改代码**；`2465` 是隐式 TLS，当前代码不支持。详见 [配置参考 §4.6](configuration.md) |
 | Webhook 全部失败 | 接收端是否校验 `X-Notify-Signature` | 见 [配置参考 §5](configuration.md)；URL / 密钥不匹配或时间戳超出 5 分钟 |
 | **日志显示成功但群里没消息** | `node src/cli.ts --test-webhook --log-level=debug` | 企微 / 钉钉 / 飞书可能回 `200 + errcode!=0`；v1.15 起会判为业务失败并写明错误码。同时确认 `NOTIFY_WEBHOOK_ADAPTERS` 与 URL 一一对应（漏配会退化成 `generic` 结构化 JSON），详见 [输出格式清单 §10](webhook-payload.md) |
 | 日志太少 / 想看每次 Cloud 请求 | `.env` 的 `NOTIFY_LOG_LEVEL`，或临时加 `--log-level=debug` | 默认 `info` 只打每轮汇总；debug 会显示路径、状态、耗时、计划与逐条触发点决策，详见 [配置参考 §9](configuration.md) |

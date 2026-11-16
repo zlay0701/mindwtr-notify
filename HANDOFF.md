@@ -1,6 +1,6 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-16 10:35（v1.20 进程时区 TZ 可配置）· 对应 `spec.md` **v1.20**
+> 生成时间：2026-11-13 · 最后整理：2026-11-16 11:45（v1.21 远端邮件发信排查）· 对应 `spec.md` **v1.21**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
@@ -216,6 +216,13 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
 文档：配置参考新增 §4.2.1、部署指南检查清单第 7 条与故障表、Coolify 变量清单、README。
 `npm test` 仍 85/85。详见 §4 第 22 条与 `spec.md` §12.11。
 
+**v1.21 远端邮件发信排查（2026-11-16 11:45）**：目标 VPS 出站 `25/465/587` 全被 RST，
+Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP_PORT` 设成 `2587` 即可，无需改代码**
+（`2465` 是隐式 TLS，当前 `secure` 只在 465 生效，不可用）。实测 587 失败、2587 真实投递成功。
+顺带修 `describeError`：message 为空时回退 `error.code`，报错从「未知错误」变成
+`网络/系统错误（ECONNREFUSED）`；新增 1 个用例，`npm test` **86/86**。
+详见 §4 第 23 条与 `spec.md` §12.12。
+
 ---
 
 ## 4. 已确认的实测事实（不要重复花积分探测）
@@ -398,23 +405,6 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
       `GET /repos/zlay0701/mindwtr-notify` 为 404；本机 `git credential` 凭据对 API 返回 401。
       **需用户在 GitHub 网页创建空的公有仓库**（不勾 README / LICENSE），之后即可推送并触发 CI。
     - 仓库不可用期间，用 `git archive HEAD` 导出与仓库一致的白名单内容做等价远端验证。
-22. **v1.20 进程时区 TZ 可配置（2026-11-16）**：编排 + 文档，产品代码零改动。
-    - 触发点：用户报「设了提醒却没提醒」，排查发现除「没有服务在跑」外，还埋着一个
-      **部署后必然踩**的时区坑：`dueDate` 允许不带时区（`2026-11-16T10:11`），
-      `Date.parse` 按进程时区解释，而 `oven/bun:1.3-alpine` 默认 UTC。
-    - 改动：`compose.yaml` / `compose.coolify.yaml` 的 `environment` 各加
-      `TZ: ${TZ:-Asia/Shanghai}`；`.env.example` 加 `TZ=Asia/Shanghai`（注释写在上一行）。
-      **必须写成插值**：`environment` 优先级高于 `env_file`，写死会让 `.env` 的覆盖失效。
-    - 远端实测（Compose v5.7.1 + 镜像内 Bun，禁网、未部署）：
-      无配置→`Asia/Shanghai`；`.env` 设 `America/New_York`→生效；shell 设 `Europe/Berlin`→覆盖 `.env`；
-      两份编排 `config --quiet` 均退出 0。容器内 Bun：不设 `TZ`→`zone=UTC`、
-      `parse=2026-11-16T10:11:00.000Z`、`ms=1794823860000`；`TZ=Asia/Shanghai`→
-      `parse=2026-11-16T02:11:00.000Z`、`ms=1794795060000`（与本机 Node 一致）。
-    - 镜像内**没有 tzdata、没有 `/etc/localtime`**，但 Bun 自带时区数据即可正确解析 —— 不用改 Dockerfile。
-    - 文档：`docs/configuration.md` 新增 §4.2.1（分工表 + 实测 + 行尾注释陷阱 + tzdata 结论）；
-      `docs/deployment.md` compose 逐段说明 / §6 两条通道（原来写「没有任何 `${}`」，已修正）/
-      检查清单第 7 条 / 故障表「晚 8 小时」；`docs/coolify.md` 变量清单与常见坑；`README.md` 两处。
-    - `npm test` 85/85；未改 BASE 规则、strict 基线、`.env`。
 21. **v1.18 仓库上线 + CI 全绿 + 从 GitHub 部署（2026-11-15）**：纯文档，产品代码零改动。
     - 用户在 GitHub 网页创建空仓库并执行 `git push -u origin main` 后，远端 main = `63c382c`，
       本地与远端同步；`git ls-files` 54 个，无 `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite。
@@ -437,6 +427,36 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
     - 推送通道：助手在沙箱内**无法直连** `github.com:443`（21s 超时），走本机代理时 git 的
       schannel / openssl 后端都报 TLS 握手失败（同一代理 curl 却是 200）；**提权执行（需用户批准）后可以 push**。
       因此默认仍由用户在本地 `git push`，助手负责提交、扫描与验证。
+
+22. **v1.20 进程时区 TZ 可配置（2026-11-16）**：编排 + 文档，产品代码零改动。
+    - 触发点：用户报「设了提醒却没提醒」，排查发现除「没有服务在跑」外，还埋着一个
+      **部署后必然踩**的时区坑：`dueDate` 允许不带时区（`2026-11-16T10:11`），
+      `Date.parse` 按进程时区解释，而 `oven/bun:1.3-alpine` 默认 UTC。
+    - 改动：`compose.yaml` / `compose.coolify.yaml` 的 `environment` 各加
+      `TZ: ${TZ:-Asia/Shanghai}`；`.env.example` 加 `TZ=Asia/Shanghai`（注释写在上一行）。
+      **必须写成插值**：`environment` 优先级高于 `env_file`，写死会让 `.env` 的覆盖失效。
+    - 远端实测（Compose v5.7.1 + 镜像内 Bun，禁网、未部署）：
+      无配置→`Asia/Shanghai`；`.env` 设 `America/New_York`→生效；shell 设 `Europe/Berlin`→覆盖 `.env`；
+      两份编排 `config --quiet` 均退出 0。容器内 Bun：不设 `TZ`→`zone=UTC`、
+      `parse=2026-11-16T10:11:00.000Z`、`ms=1794823860000`；`TZ=Asia/Shanghai`→
+      `parse=2026-11-16T02:11:00.000Z`、`ms=1794795060000`（与本机 Node 一致）。
+    - 镜像内**没有 tzdata、没有 `/etc/localtime`**，但 Bun 自带时区数据即可正确解析 —— 不用改 Dockerfile。
+    - 文档：`docs/configuration.md` 新增 §4.2.1（分工表 + 实测 + 行尾注释陷阱 + tzdata 结论）；
+      `docs/deployment.md` compose 逐段说明 / §6 两条通道（原来写「没有任何 `${}`」，已修正）/
+      检查清单第 7 条 / 故障表「晚 8 小时」；`docs/coolify.md` 变量清单与常见坑；`README.md` 两处。
+    - `npm test` 85/85；未改 BASE 规则、strict 基线、`.env`。
+23. **v1.21 远端邮件发信排查（2026-11-16）**：改 1 处产品代码（`src/errors.ts`），BASE / strict 零改动。
+    - 现象：远端 `--test-email` 失败，日志只有 `运行失败 reason=未知错误`。
+    - 端口诊断（宿主机 + 容器一致）：`25 / 465 / 587` 全部 `Connection refused`（RST，不是超时），
+      **`2465` / `2587` OPEN**；DNS 正常。
+    - 协议探测：`2465`=隐式 TLS（AUTH OK）、`2587`=STARTTLS（AUTH OK）。
+      但 `src/config.ts` 的 `secure` 由端口推导（`=== 465`），**2465 当前不可用**；
+      **`SMTP_PORT=2587` + `SMTP_REQUIRE_TLS=true` 是零代码方案**。
+    - 真实发信：587 → 失败；2587 → `测试邮件已通过 SMTP 发送。`（真实投递 1 封）。
+    - 可诊断性：`describeError` 在 message 为空时回退 `error.code`，输出 `网络/系统错误（ECONNREFUSED）`；
+      新增 1 个用例，`npm test` **86/86**；远端重建镜像复跑 587 已验证。
+    - 文档：配置参考 §4.6、部署指南检查清单第 6 条与故障表、Coolify 常见坑、README 检查清单。
+
 
 ---
 
@@ -628,3 +648,6 @@ NODE_USE_ENV_PROXY=1 npm run dry-run
   镜像默认 UTC，只配后者会让提醒晚 8 小时且不报错。两份编排已默认 `TZ: ${TZ:-Asia/Shanghai}`；
   改的时候别写死值（`environment` 优先级高于 `env_file`），也别给 `TZ` 加行尾注释。
   排查「时间差 8 小时」先看容器内 `Intl.DateTimeFormat().resolvedOptions().timeZone`。
+- **VPS 发邮件要换端口**：目标 VPS 出站 `25/465/587` 被 RST，日志是
+  `网络/系统错误（ECONNREFUSED）`。用 `SMTP_PORT=2587`（Resend 备选、STARTTLS）即可；
+  别用 `2465`（隐式 TLS，当前代码只在 `SMTP_PORT=465` 时启用隐式 TLS）。

@@ -3,7 +3,22 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.20 · 日期：2026-11-16
+> 版本：v1.21 · 日期：2026-11-16
+> **v1.21 变更**：**远端邮件发信失败排查：改写 `SMTP_PORT=2587` + 错误码可诊断**（改 1 处产品代码，BASE / strict 零改动）。
+> ① 网络诊断（目标 VPS，宿主机与容器分别测）：`25 / 465 / 587` 全部 `Connection refused`（被 RST，不是超时），
+> 而 Resend 的备选端口 **`2465` / `2587` 可连**，DNS 正常解析到其 AWS ELB。
+> ② 协议探测：`2465` = 隐式 TLS（AUTH 成功）、`2587` = STARTTLS（AUTH 成功）；
+> 但 `src/config.ts` 的 `secure` 是**由端口推导**（`SMTP_PORT === 465`）、没有独立开关，
+> 所以 `2465` 当前不可用，**`2587` + `SMTP_REQUIRE_TLS=true` 是零代码改动的最优解**。
+> ③ 真实发信对比（镜像内 `bun run src/cli.ts --test-email`）：`587` 失败；
+> `2587` 输出「测试邮件已通过 SMTP 发送。」（真实投递 1 封）。
+> ④ 可诊断性修复：`src/errors.ts` 的 `describeError` 在 `message` 为空时回退到 `error.code`，
+> 输出 `网络/系统错误（ECONNREFUSED）`；有 message 时行为不变，两者皆空才用调用方兜底文案。
+> 新增 1 个用例，`npm test` **86/86**；远端重建镜像后复跑 587 已验证输出确实变成 `ECONNREFUSED`。
+> ⑤ 文档：`docs/configuration.md` §4.6 端口说明与「端口被封怎么办」、`docs/deployment.md`
+> 检查清单第 6 条与故障表、`docs/coolify.md` 常见坑、`README.md` 检查清单。
+> 未改：`BASE` 规则、strict 基线、`Dockerfile`、`.env`（本机 `SMTP_PORT` 仍是 `587`，部署到该 VPS 时需改 `2587`）。
+> 详见 §12.12。
 > **v1.20 变更**：**把进程时区 `TZ` 做成可配置项（默认 `Asia/Shanghai`），修掉容器内「提醒晚 8 小时」的隐患**。
 > 起因：排查用户「设了提醒却没提醒」时发现，Mindwtr 的 `dueDate` 可以写成**不带时区**的
 > `2026-11-16T10:11`，`Date.parse` 会按**进程时区**解释；而镜像 `oven/bun:1.3-alpine`
@@ -835,6 +850,31 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 因此它保持为容器/系统级变量，应用只读 `NOTIFY_TIMEZONE` 负责渲染，文档明确要求两者一致。
 
 **未改**：产品代码、`BASE` 规则、strict 基线、`Dockerfile`、`.env`。`npm test` **85/85**。
+
+### 12.12 v1.21 远端邮件发信排查记录（2026-11-16）
+
+**现象**：在目标 VPS 上 `--test-email` 失败，日志只有 `运行失败 reason=未知错误`。
+
+**分段诊断**
+
+| 步骤 | 结果 |
+|---|---|
+| DNS（宿主机） | 正常，解析到 Resend 的 AWS ELB |
+| TCP 端口（宿主机 + 容器一致） | `25 / 465 / 587` → `Connection refused`（RST，而非超时）；**`2465` / `2587` → OPEN** |
+| 协议探测（smtplib，凭据经 600 权限临时文件传入，用完即删） | `2465` 隐式 TLS → `AUTH=OK`；`2587` STARTTLS → `AUTH=OK`；`2587` 直连 SSL 报 `WRONG_VERSION_NUMBER` |
+| 代码事实 | `src/config.ts` 的 `secure: number(env.SMTP_PORT, 587) === 465`，**没有 `SMTP_SECURE` 开关** |
+| 真实发信 | `SMTP_PORT=587` → 失败；`SMTP_PORT=2587` → `测试邮件已通过 SMTP 发送。`（真实投递 1 封） |
+
+**结论**：这是 VPS 出站网络策略（封 25/465/587），不是代码缺陷。零代码改动方案是
+`SMTP_PORT=2587` + `SMTP_REQUIRE_TLS=true`；`2465` 虽是隐式 TLS，但当前 `secure` 只在 465 时为真，
+用它需要改代码，因此文档明确标注**不要用 2465**。
+
+**顺带修复的可诊断性问题**：`describeError` 原先只看 `Error.message`，Bun 的 socket 错误 `message`
+为空时直接落兜底文案，导致 `ECONNREFUSED` / `ETIMEDOUT` 这类最有价值的信息被吃掉。现改为
+message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSED）`），有 message 时行为不变，
+两者都空才用调用方兜底。远端重建镜像后复跑 587 已确认输出生效。
+
+**未改**：`BASE` 规则、strict 基线、`.env`（本机 `SMTP_PORT` 仍为 `587`；部署到该 VPS 时需改 `2587`）。
 
 ---
 

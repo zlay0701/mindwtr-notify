@@ -31,6 +31,15 @@ export function redactUrls(text: string): string {
 export function describeError(error: unknown, fallback = '未知错误'): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const cleaned = redactUrls(raw).slice(0, 160).trim();
-  // 用 || 而不是 ??：空串也是「没有有效信息」，必须落到兜底文案。
-  return cleaned || fallback;
+  if (cleaned) return cleaned;
+
+  // message 为空时再退一步看 code：Bun 的 socket 错误常把原因放在 error.code 上
+  // （ECONNREFUSED / ETIMEDOUT / EAI_AGAIN / ENOTFOUND），而 message 是空串。
+  // 不看 code 的话，VPS 端口被封这类最常见的失败只会显示「未知错误」，
+  // 排查时无法区分「连接被拒」和「超时」——这正是 2026-11-16 邮件发信排查踩到的坑。
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && code.trim()) {
+    return `网络/系统错误（${code.trim().slice(0, 40)}）`;
+  }
+  return fallback;
 }

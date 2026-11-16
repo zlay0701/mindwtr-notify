@@ -1,6 +1,6 @@
 # 在 Coolify 上部署 Notify
 
-> 对应 `spec.md` **v1.20** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 对应 `spec.md` **v1.21** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
 > 代码已在公有仓库 `https://github.com/zlay0701/mindwtr-notify`（main），可直接部署。
 > 本文只讲 Coolify。原生 `docker compose` 见 [部署指南](deployment.md)，配置项含义见
 > [配置参考](configuration.md)，管理页用法见 [页面操作手册](admin-guide.md)，
@@ -259,7 +259,7 @@ bun run src/cli.ts --test-webhook --log-level=debug
 | 提醒内容来自测试库 | `MINDWTR_BASE_URL` 误填测试地址；改回生产地址并 Redeploy |
 | 提醒时间差 8 小时 | 容器进程时区是 UTC：面板里把 `TZ` 设成 `Asia/Shanghai`（与 `NOTIFY_TIMEZONE` 一致），然后 Redeploy；见 [配置参考 §4.2.1](configuration.md) |
 | 企微收不到消息，但日志说成功 | 检查 `NOTIFY_WEBHOOK_ADAPTERS`；v1.15 起 `200 + errcode!=0` 会判为业务失败，看具体 `errcode`，见 [webhook-payload.md §10](webhook-payload.md) |
-| 邮件渠道全失败 | 部分 VPS 出站 587/465 被拒（本项目已在目标 VPS 实测），属网络策略；改用 Webhook 或放行端口 / 中继 |
+| 邮件渠道全失败 | 部分 VPS 出站 25/465/587 被拒（本项目已在目标 VPS 实测）；**把 `SMTP_PORT` 改成 `2587`（STARTTLS）即可发信**，不用改代码；`2465` 是隐式 TLS，当前代码不支持 |
 | 收到重复提醒 | 是否开了预览部署、扩了副本、或删过卷；`docker compose ps` 看实例数 |
 | 管理页 401 | 右上角令牌输入框填 `NOTIFY_ADMIN_TOKEN`（或 `HEALTHZ_TOKEN`）后刷新 |
 | 配置改了不生效 | 只改环境变量必须重建容器；`restart` 不会重新读 `.env`。改编排文件要改**仓库里的文件**再部署 |

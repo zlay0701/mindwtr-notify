@@ -110,7 +110,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
 ## 目录结构
 
 ```
-spec.md              规格说明书（唯一权威规则来源，v1.20）
+spec.md              规格说明书（唯一权威规则来源，v1.21）
 HANDOFF.md           新对话窗口的交接包 / 开工提示词
 README.md            本文件
 .env.example         配置模板（不含真实凭据）
@@ -192,7 +192,7 @@ tests/               8 个测试文件，共 85 个用例
 3. 校验用 `docker compose config --quiet`；**不要**用会展开 `env_file` 明文的 `docker compose config`。
 4. 确认 `replicas: 1`、只起一个实例（无 leader election，多实例会重复投递）。
 5. 确认 `read_only: true` 下状态库仍在卷 `/app/data`；不要改到只读根文件系统的其它路径。
-6. 若该 VPS 出站 SMTP 587 / 465 仍被拒，邮件渠道无法投递（目标 D 已实测），需放行端口或改用中继。
+6. 该 VPS 出站 SMTP 25 / 465 / 587 被拒（已实测）：用邮件渠道请把 `SMTP_PORT` 设为 `2587`（Resend 备选端口，STARTTLS），实测可正常发信、无需改代码。
 7. 确认 `TZ` 与 `NOTIFY_TIMEZONE` 一致（默认都是 `Asia/Shanghai`）；两者不一致会让提醒差 8 小时且不报错。
 
 ## 当前状态

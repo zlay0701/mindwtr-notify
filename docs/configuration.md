@@ -1,6 +1,6 @@
 # Notify 配置参考
 
-> 对应 `spec.md` **v1.20**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
+> 对应 `spec.md` **v1.21**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
 > 管理页用法见 [页面操作手册](admin-guide.md)，调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，  
 > 出站 POST 的完整数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)。  
 > 本文所有示例都用占位符，**不含任何真实凭据**。
@@ -151,7 +151,7 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 | ------------------------- | -------- | ---------------------------------------- | ---------- |
 | `SMTP_ENABLED`            | `false`  | 总开关                                      | EXT-01【增强】 |
 | `SMTP_HOST`               | 空        | SMTP 服务器地址                               | EXT-01     |
-| `SMTP_PORT`               | `587`    | `587` = STARTTLS；`465` = 隐式 TLS（按端口自动判断） | EXT-01     |
+| `SMTP_PORT`               | `587`    | `587` = STARTTLS；`465` = 隐式 TLS（按端口自动判断）；端口被封时改 `2587`，见下方说明 | EXT-01     |
 | `SMTP_REQUIRE_TLS`        | `true`   | 是否要求 TLS                                 | EXT-01     |
 | `SMTP_USER` / `SMTP_PASS` | 空        | 认证账号与密码，绝不写进日志或文档                        | EXT-01     |
 | `SMTP_FROM`               | 空        | 发件地址                                     | EXT-01     |
@@ -159,6 +159,13 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 | `SMTP_TO`                 | 空        | 收件人，多个用英文逗号分隔                            | EXT-01     |
 
 > 未配 SMTP 时 `node src/cli.ts --test-email` 会把测试邮件写到 `data/test-emails.txt`，不会外发。
+
+> **端口被 VPS 封了怎么办（2026-11-16 实测）**：目标 VPS 出站 `25 / 465 / 587` 全部
+> `Connection refused`（被 RST，不是超时），而 Resend 的备选端口 **`2587`** 与 `2465` 都能连上。
+> 本项目 `secure` 是**由端口推导**的（`SMTP_PORT === 465`），没有独立开关，所以：
+> **`SMTP_PORT=2587` + `SMTP_REQUIRE_TLS=true` 可直接发信，无需改代码**；
+> `2465` 是隐式 TLS，当前代码不会对它启用 TLS，**不要用**。
+> 实测同一份配置：`587` → `网络/系统错误（ECONNREFUSED）`；`2587` → `测试邮件已通过 SMTP 发送。`
 
 ### 4.7 Webhook 通道
 

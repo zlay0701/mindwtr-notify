@@ -15,7 +15,7 @@ import { join } from 'node:path';
 
 import { loadConfig } from '../src/config.ts';
 import { createCloudClient } from '../src/cloud/client.ts';
-import { redactUrls } from '../src/errors.ts';
+import { describeError, redactUrls } from '../src/errors.ts';
 import { createLogger, LOG_LEVELS, parseLogLevel, type EmitLevel, type LogLevel } from '../src/logger.ts';
 import { createScheduler } from '../src/scheduler.ts';
 import { createStateStore } from '../src/state/store.ts';
@@ -113,6 +113,21 @@ test('redactUrls 把 http(s) 地址整段替换成 [url]', () => {
   assert.equal(redactUrls('fetch failed: https://hook.example.invalid/a?token=SECRET'), 'fetch failed: [url]');
   assert.equal(redactUrls('GET http://127.0.0.1:8787/health 失败'), 'GET [url] 失败');
   assert.equal(redactUrls('普通文本保持原样'), '普通文本保持原样');
+});
+
+test('describeError 在 message 为空时用 error.code 兜底', () => {
+  // 背景：Bun 下 socket 错误的 message 是空串，但 code 仍是 ECONNREFUSED。
+  // 若不看 code，VPS 端口被封这类失败只会显示「未知错误」，无法区分拒绝与超时。
+  const refused = Object.assign(new Error(''), { code: 'ECONNREFUSED' });
+  assert.equal(describeError(refused), '网络/系统错误（ECONNREFUSED）');
+
+  // 有 message 时仍以 message 为准，不受 code 影响
+  const withMessage = Object.assign(new Error('连接被拒绝'), { code: 'ECONNREFUSED' });
+  assert.equal(describeError(withMessage), '连接被拒绝');
+
+  // 既无 message 又无 code 时，落到调用方给的兜底文案
+  assert.equal(describeError(new Error('')), '未知错误');
+  assert.equal(describeError(new Error(''), 'SMTP 发送失败（未提供错误详情）'), 'SMTP 发送失败（未提供错误详情）');
 });
 
 test('日志正文与结构化字段里的密钥 URL 都不会出现在输出里', () => {
