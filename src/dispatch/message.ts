@@ -10,6 +10,7 @@
  */
 
 import type { NotifyConfig } from '../config.ts';
+import { formatStamp, type TimeFormatOptions } from '../format.ts';
 import type { PlannedNotification, TaskSummary } from '../rules/plan.ts';
 
 /** 邮件内容。SMTP 传输层只认这个结构，不关心它从哪来。 */
@@ -121,9 +122,19 @@ function subjectFor(plan: PlannedNotification, message: NotifyMessage): string {
 }
 
 /** 把任务摘要列表渲染成纯文本行，汇总类通知共用。 */
-function linesForTasks(tasks: TaskSummary[] | undefined, indent = '- '): string {
+function linesForTasks(
+  tasks: TaskSummary[] | undefined,
+  indent = '- ',
+  time?: TimeFormatOptions,
+): string {
   if (!tasks?.length) return '（无）';
-  return tasks.map(task => `${indent}${task.title}${task.dueDate ? `（截止 ${task.dueDate}）` : ''}`).join('\n');
+  return tasks
+    .map(task => {
+      // 摘要里的 dueDate 可能只是日期，formatStamp 会原样保留，不会补出 00:00:00。
+      const due = task.dueDate ? `（截止 ${time ? formatStamp(task.dueDate, time) : task.dueDate}）` : '';
+      return `${indent}${task.title}${due}`;
+    })
+    .join('\n');
 }
 
 /**
@@ -135,28 +146,29 @@ export function renderEmail(
   config: NotifyConfig,
 ): EmailContent {
   const subject = subjectFor(plan, message);
+  const time: TimeFormatOptions = { pattern: config.timeFormat, timeZone: config.timezone };
   const parts: string[] = [];
 
   if (message.task) {
     parts.push(`任务：${message.task.title}`);
     parts.push(`状态：${message.task.status}`);
-    if (message.task.dueDate) parts.push(`截止：${message.task.dueDate}`);
-    if (message.task.startTime) parts.push(`开始：${message.task.startTime}`);
+    if (message.task.dueDate) parts.push(`截止：${formatStamp(message.task.dueDate, time)}`);
+    if (message.task.startTime) parts.push(`开始：${formatStamp(message.task.startTime, time)}`);
     if (message.task.projectName) parts.push(`项目：${message.task.projectName}`);
     if (message.task.description) parts.push(`\n描述：${message.task.description}`);
   }
   if (message.project) {
     parts.push(`项目：${message.project.title ?? message.project.id}`);
-    if (message.trigger?.at) parts.push(`回顾时间：${message.trigger.at}`);
+    if (message.trigger?.at) parts.push(`回顾时间：${formatStamp(message.trigger.at, time)}`);
   }
   if (message.digest) {
-    parts.push(`今日到期：\n${linesForTasks(message.digest.dueToday)}`);
-    parts.push(`\n已逾期：\n${linesForTasks(message.digest.overdue)}`);
-    parts.push(`\n今日开始：\n${linesForTasks(message.digest.startingToday)}`);
-    parts.push(`\n专注任务：\n${linesForTasks(message.digest.focused)}`);
+    parts.push(`今日到期：\n${linesForTasks(message.digest.dueToday, '- ', time)}`);
+    parts.push(`\n已逾期：\n${linesForTasks(message.digest.overdue, '- ', time)}`);
+    parts.push(`\n今日开始：\n${linesForTasks(message.digest.startingToday, '- ', time)}`);
+    parts.push(`\n专注任务：\n${linesForTasks(message.digest.focused, '- ', time)}`);
   }
   if (message.backlog) {
-    parts.push(`共 ${message.backlog.count} 条逾期未完成任务：\n${linesForTasks(message.backlog.tasks)}`);
+    parts.push(`共 ${message.backlog.count} 条逾期未完成任务：\n${linesForTasks(message.backlog.tasks, '- ', time)}`);
   }
 
   const text = parts.join('\n');

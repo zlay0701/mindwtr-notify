@@ -80,6 +80,8 @@ export function createDispatcher(config: NotifyConfig, options: DispatcherOption
           fetchImpl: options.fetchImpl,
           maxAttempts: config.channels.webhook.maxAttempts,
           sleep: options.sleep,
+          // EXT-21：只影响文本里的时间显示，结构化 JSON 仍是 ISO。
+          time: { pattern: config.timeFormat, timeZone: config.timezone },
         });
       }
 

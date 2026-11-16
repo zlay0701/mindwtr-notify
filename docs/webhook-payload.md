@@ -1,6 +1,6 @@
 # Notify Webhook 输出数据格式清单
 
-> 对应 `spec.md` **v1.24**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
+> 对应 `spec.md` **v1.25**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
 > 权威实现：`src/dispatch/message.ts`（通用结构）、`src/dispatch/adapters.ts`（平台适配）、
 > `src/dispatch/webhook.ts`（签名与重试）、`src/dispatch/index.ts`（渠道分发）。
 > 本文所有样例都由本地假数据实跑生成，域名一律用 `.invalid` 占位，**不含任何真实凭据或 URL**。
@@ -283,6 +283,9 @@
 - backlog：输出总数，再列前 5 条标题。
 - `system`：输出 `note` 正文。
 - 项目回顾：输出项目名与回顾时间（`项目：…` / `回顾时间：…`），没有任务块。
+- **时间按 `NOTIFY_TIME_FORMAT` 渲染**（默认 `yyyy-MM-dd HH:mm:ss`，业务时区，见
+  [配置参考 §4.2.2](configuration.md)）。上面样例里的 `2026-11-15 23:00:00` 就是 UTC 15:00 的北京时间。
+  这是**平台文本专属**：`generic` 通道的 JSON 始终是 ISO 8601，不受该配置影响。
 
 ### 7.1 钉钉 `dingtalk`
 
@@ -298,7 +301,7 @@ Content-Type: application/json
   "msgtype": "markdown",
   "markdown": {
     "title": "Notify 提醒",
-    "text": "【截止提醒】\n任务：示例任务\n截止：2026-11-15T15:00:00.000Z\n开始：2026-11-15T13:00:00.000Z\n项目：示例项目\n描述：重点 ：完成联调"
+    "text": "【截止提醒】\n任务：示例任务\n截止：2026-11-15 23:00:00\n开始：2026-11-15 21:00:00\n项目：示例项目\n描述：重点 ：完成联调"
   }
 }
 ```
@@ -311,7 +314,7 @@ Content-Type: application/json
 {
   "msgtype": "text",
   "text": {
-    "content": "【截止提醒】\n任务：示例任务\n截止：2026-11-15T15:00:00.000Z\n开始：2026-11-15T13:00:00.000Z\n项目：示例项目\n描述：重点 ：完成联调"
+    "content": "【截止提醒】\n任务：示例任务\n截止：2026-11-15 23:00:00\n开始：2026-11-15 21:00:00\n项目：示例项目\n描述：重点 ：完成联调"
   }
 }
 ```

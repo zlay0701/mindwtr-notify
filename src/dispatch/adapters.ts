@@ -13,6 +13,8 @@
 
 import { createHmac } from 'node:crypto';
 import type { WebhookAdapter } from '../config.ts';
+import { formatStamp, type TimeFormatOptions } from '../format.ts';
+import { DEFAULT_TIME_FORMAT } from '../rules/time.ts';
 import type { NotifyMessage } from './message.ts';
 import { postWebhook, type DeliveryResult, type WebhookPostOptions } from './webhook.ts';
 
@@ -57,20 +59,26 @@ function eventLabel(event: string): string {
   return labels[event] ?? event;
 }
 
-/** 把结构化消息渲染成机器人可读的纯文本，内容同样遵守 EXT-03 数据最小化。 */
-export function renderPlatformText(message: NotifyMessage): string {
+/**
+ * 把结构化消息渲染成机器人可读的纯文本，内容同样遵守 EXT-03 数据最小化。
+ * @param time 显示格式与时区（EXT-21）；不传时用默认格式 + Asia/Shanghai，便于单测直接调用
+ */
+export function renderPlatformText(
+  message: NotifyMessage,
+  time: TimeFormatOptions = { pattern: DEFAULT_TIME_FORMAT, timeZone: 'Asia/Shanghai' },
+): string {
   const lines: string[] = [`【${eventLabel(message.event)}】`];
 
   if (message.task) {
     lines.push(`任务：${message.task.title}`);
-    if (message.task.dueDate) lines.push(`截止：${message.task.dueDate}`);
-    if (message.task.startTime) lines.push(`开始：${message.task.startTime}`);
+    if (message.task.dueDate) lines.push(`截止：${formatStamp(message.task.dueDate, time)}`);
+    if (message.task.startTime) lines.push(`开始：${formatStamp(message.task.startTime, time)}`);
     if (message.task.projectName) lines.push(`项目：${message.task.projectName}`);
     if (message.task.description) lines.push(`描述：${message.task.description}`);
   }
   if (message.project) {
     lines.push(`项目：${message.project.title ?? message.project.id}`);
-    if (message.trigger?.at) lines.push(`回顾时间：${message.trigger.at}`);
+    if (message.trigger?.at) lines.push(`回顾时间：${formatStamp(message.trigger.at, time)}`);
   }
   if (message.digest) {
     const digest = message.digest;
@@ -98,8 +106,9 @@ export function buildPlatformRequest(
   secret: string,
   message: NotifyMessage,
   now = Date.now(),
+  time?: TimeFormatOptions,
 ): PlatformRequest {
-  const text = renderPlatformText(message);
+  const text = renderPlatformText(message, time);
   const headers = { 'Content-Type': 'application/json' };
 
   if (kind === 'dingtalk') {
@@ -149,8 +158,10 @@ export async function deliverPlatformWebhook(
   url: string,
   secret: string,
   message: NotifyMessage,
-  options: WebhookPostOptions & { now?: number } = {},
+  options: WebhookPostOptions & { now?: number; time?: TimeFormatOptions } = {},
 ): Promise<DeliveryResult> {
-  const request = buildPlatformRequest(kind, url, secret, message, options.now ?? Date.now());
+  const request = buildPlatformRequest(
+    kind, url, secret, message, options.now ?? Date.now(), options.time,
+  );
   return postWebhook(request.url, request.body, request.headers, options);
 }

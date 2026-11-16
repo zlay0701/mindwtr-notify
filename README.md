@@ -100,6 +100,9 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
 - `TZ` / `NOTIFY_TIMEZONE` —— 进程时区与渲染时区，默认都是 `Asia/Shanghai`。`TZ` 决定「不带时区」的日期
   怎么解析（容器默认 UTC，缺了会晚 8 小时且不报错），`NOTIFY_TIMEZONE` 决定时刻怎么渲染；两者要保持一致，
   详见 **[配置参考 §4.2.1](docs/configuration.md)**。
+- `NOTIFY_TIME_FORMAT` —— 消息里时间的显示格式，默认 `yyyy-MM-dd HH:mm:ss`（按业务时区）；
+  token 支持 `yyyy MM dd HH mm ss`。只影响邮件正文与钉钉/企微/飞书文本，结构化 JSON 仍是 ISO。详见
+  **[配置参考 §4.2.2](docs/configuration.md)**。
 - `NOTIFY_LOG_LEVEL` —— 日志级别，默认 `info`；排障设 `debug`（或临时 `--log-level=debug`），
   可选 `warn` / `error` / `silent`。命令输出（dry-run 计划、投递结果）不受级别影响；详见 **[配置参考 §9](docs/configuration.md)**。
   Webhook 实际发出的字段与四种 body 形态见 **[输出数据格式清单](docs/webhook-payload.md)**。
@@ -111,7 +114,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
 ## 目录结构
 
 ```
-spec.md              规格说明书（唯一权威规则来源，v1.24）
+spec.md              规格说明书（唯一权威规则来源，v1.25）
 HANDOFF.md           新对话窗口的交接包 / 开工提示词
 README.md            本文件
 .env.example         配置模板（不含真实凭据）
@@ -172,6 +175,7 @@ tests/               8 个测试文件，共 85 个用例
   m4.test.ts             M4 命名空间隔离、只读管理页、鉴权重发、审计、strict 一致性
   logging.test.ts        v1.13：日志级别过滤 / 格式 / 脱敏 / 配置覆盖 / 调度与 Cloud 集成
   webhook-response.test.ts v1.15：业务码校验 / 假成功拦截 / 兼容与脱敏 / wecom 适配器链路
+  format.test.ts         v1.25：时间格式（时区换算 / token 组合 / 仅日期原样 / JSON 仍 ISO）
   e2e-channels.mjs       目标B真实渠道联调（本地 mock Cloud + 真实 SMTP + 独立验签接收端；不进 npm test）
 ```
 
@@ -199,7 +203,7 @@ tests/               8 个测试文件，共 85 个用例
 
 ## 当前状态
 
-`npm test` **85/85 通过**（v1.15 起新增 11 个 Webhook 业务响应用例；含官方 `getTaskReminderPlan` 黄金比对夹具与 M4 的 11 个用例，strict 差集为空，纯本地、不受所连实例影响）。
+`npm test` **92/92 通过**（含官方 `getTaskReminderPlan` 黄金比对夹具、M4、日志、Webhook 业务响应与时间格式用例；strict 差集为空，纯本地、不受所连实例影响）。
 
 ⚠️ **当前 `.env` 指向测试服务器**（2026-11-14 起）。`npm run dry-run` 的数字取决于**所连实例 + 造数距今多久**：
 

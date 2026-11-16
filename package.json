@@ -10,7 +10,7 @@
     "once": "node src/cli.ts --once",
     "probe": "node scripts/probe.mjs",
     "seed:test": "node scripts/seed-test-data.mjs",
-    "test": "node --test tests/reminder-plan.test.ts tests/m2-rules.test.ts tests/m2-delivery.test.ts tests/m3.test.ts tests/official-golden.test.ts tests/m4.test.ts tests/logging.test.ts tests/webhook-response.test.ts"
+    "test": "node --test tests/reminder-plan.test.ts tests/m2-rules.test.ts tests/m2-delivery.test.ts tests/m3.test.ts tests/official-golden.test.ts tests/m4.test.ts tests/logging.test.ts tests/webhook-response.test.ts tests/format.test.ts"
   },
   "engines": {
     "node": ">=22.18"

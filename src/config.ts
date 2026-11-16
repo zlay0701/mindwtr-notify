@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { redactUrls } from './errors.ts';
 import { LOG_LEVELS, parseLogLevel, type LogLevel } from './logger.ts';
 import { normalizeNamespace, statePathForNamespace } from './state/namespace.ts';
+import { DEFAULT_TIME_FORMAT } from './rules/time.ts';
 
 /** 单条摘要规则。`at` 是本地时区的 HH:MM，weekly 额外用 day 表示星期（0=周日）。 */
 export interface DigestRule {
@@ -41,6 +42,12 @@ export interface NotifyConfig {
   baseUrl: string;
   token: string;
   timezone: string;
+
+  /**
+   * EXT-21【官方无】：消息里显示时间的格式，默认 `yyyy-MM-dd HH:mm:ss`。
+   * 只影响人看的文本（邮件正文、钉钉/企微/飞书文本），结构化 JSON 仍用 ISO 8601。
+   */
+  timeFormat: string;
 
   /**
    * M4 · EXT-19【官方无】：当前实例的命名空间。
@@ -166,6 +173,20 @@ function readDotEnv(path: string): Record<string, string> {
   return result;
 }
 
+/**
+ * 校验并归一化 `NOTIFY_TIME_FORMAT`。
+ *
+ * 判据刻意宽松：只要含**至少一个**已知 token（yyyy/MM/dd/HH/mm/ss）就照用，
+ * 让 `MM-dd HH:mm`、`yyyy/MM/dd` 这类写法都能生效。
+ * 一个 token 都没有（例如误填 `date`）时回退默认值 —— 否则消息里会出现一坨没有信息量的字面量。
+ */
+function normalizeTimeFormat(value: string | undefined): string {
+  const text = String(value ?? '').trim();
+  if (!text) return DEFAULT_TIME_FORMAT;
+  if (!/yyyy|MM|dd|HH|mm|ss/.test(text)) return DEFAULT_TIME_FORMAT;
+  return text;
+}
+
 function bool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined || value === '') return fallback;
   return value.toLowerCase() === 'true' || value === '1' || value === 'yes';
@@ -242,6 +263,7 @@ export function loadConfig(options: {
     baseUrl: String(env.MINDWTR_BASE_URL || 'https://mindwtr-cloud.zlay.dpdns.org').replace(/\/+$/, ''),
     token: String(env.MINDWTR_TOKEN || '').trim(),
     timezone: env.NOTIFY_TIMEZONE || 'Asia/Shanghai',
+    timeFormat: normalizeTimeFormat(env.NOTIFY_TIME_FORMAT),
     namespace,
     strictMode: bool(env.NOTIFY_STRICT, fileBool('strictMode', false)),
     pollIntervalSeconds: number(env.NOTIFY_POLL_SECONDS, 60),

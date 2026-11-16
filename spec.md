@@ -3,7 +3,24 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.24 · 日期：2026-11-16
+> 版本：v1.25 · 日期：2026-11-16
+> **v1.25 变更**：**消息里的时间改为可配置的本地时间格式（EXT-21【官方无】）**（改 5 个源文件 + 1 个测试文件）。
+> 在此之前，邮件正文与钉钉/企微/飞书文本里直接输出原始 ISO（`2026-11-16T04:38:26.282Z`），
+> 既是 UTC 又带 `T`/`Z`，日常阅读很别扭。
+> ① 新增 `NOTIFY_TIME_FORMAT`（默认 `yyyy-MM-dd HH:mm:ss`）+ `src/format.ts` 的 `formatStamp`，
+> 按 `NOTIFY_TIMEZONE` 渲染成**本地时间**；token 支持 `yyyy/MM/dd/HH/mm/ss`，可自由组合
+> （`yyyy/MM/dd HH:mm`、`MM-dd HH:mm` 等）；一个 token 都没有时回退默认值。
+> ② **只影响人看的文本**：`renderEmail`（含摘要清单里的截止时间、项目回顾的回顾时间）与
+> `renderPlatformText`（钉钉/企微/飞书）。`generic` 通道的结构化 JSON **仍是 ISO 8601**，
+> 协议层不受显示配置污染。
+> ③ `timestamp 秒/毫秒`、签名等协议字段一律不动；平台签名仍用真实时间戳。
+> ④ 仅日期字段不被补时刻：`2026-11-16` 仍显示 `2026-11-16`（与 BASE-22 同一套判定），
+> 避免把「只有日期」误显示成「当天 00:00:00」。
+> ⑤ 新增 `tests/format.test.ts` 4 个用例（时区换算与 token 组合、仅日期/非法值原样、配置默认与回退、
+> 文本用格式而 JSON 保持 ISO），`npm test` **92/92**。实测：`2026-11-16T15:00:00Z` → 邮件/平台文本
+> `截止：2026-11-16 23:00:00`；改成 `yyyy/MM/dd HH:mm` → `2026/11/16 23:00`。
+> ⑥ 文档：`docs/configuration.md` 新增 §4.2.2 与配置表行、`.env.example` 补该键、
+> `docs/rules.md` §4、`docs/webhook-payload.md` 平台样例改为本地时间并注明 JSON 不受影响。
 > **v1.24 变更**：**补齐项目回顾提醒（BASE-07）**（改 3 个源文件 + 2 个用例，BASE 规则与 strict 基线未变动）。
 > 背景：v1.23 整理规则手册时发现 `project-review` 只有类型、标签与策略判定，没有生成代码，
 > 与 §15「已实现」不一致；本次选择「补实现」而不是改文档。
@@ -979,6 +996,28 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 
 **未改**：BASE 规则数值、strict 基线、`Dockerfile`、`.env`。`npm test` **88/88**。
 
+### 12.16 v1.25 可配置的时间显示格式（EXT-21）
+
+| 位置 | 改动 |
+|---|---|
+| `src/rules/time.ts` | `ZonedParts` 增加 `second`；新增 `formatDateTime(epoch, timeZone, pattern)` 与 `DEFAULT_TIME_FORMAT`；用一次性正则替换 token，避免 `MM`→`mm` 之类的顺序坑 |
+| `src/format.ts`（新增） | `formatStamp(value, { pattern, timeZone })`：仅日期原样返回、解析不了原样返回、空值返回空串 |
+| `src/config.ts` | 新增 `timeFormat`（`NOTIFY_TIME_FORMAT`，默认 `yyyy-MM-dd HH:mm:ss`）；一个 token 都没有时回退默认 |
+| `src/dispatch/message.ts` | 邮件正文的截止 / 开始 / 回顾时间与摘要清单里的截止时间改用 `formatStamp` |
+| `src/dispatch/adapters.ts` | `renderPlatformText` 接受 `TimeFormatOptions`；`buildPlatformRequest` / `deliverPlatformWebhook` 透传 |
+| `src/dispatch/index.ts` | 投递平台通道时传入 `{ pattern: config.timeFormat, timeZone: config.timezone }` |
+| `tests/format.test.ts`（新增） | 4 个用例：时区换算与 token 组合、仅日期/非法值原样、配置默认与回退、文本用格式而 JSON 保持 ISO |
+
+**为什么只改文本、不改 JSON**：`generic` 接收方要靠 ISO 做机器解析，显示格式属于表现层；
+一旦把 JSON 也改成 `2026-11-16 23:00:00`，接收端 `Date.parse` 会按各自时区理解，重新引入 8 小时偏差。
+
+**实测**（本地纯函数，不联网）：
+`2026-11-16T15:00:00.000Z` + 默认格式 → 邮件与平台文本均为 `截止：2026-11-16 23:00:00`；
+`yyyy/MM/dd HH:mm` → `2026/11/16 23:00`；仅日期 `2026-11-16` 原样保留；结构化 JSON 仍为
+`2026-11-16T15:00:00.000Z`。`npm test` **92/92**。
+
+**未改**：BASE 规则、strict 基线、签名与时间戳协议字段、`Dockerfile`、`.env`。
+
 ---
 
 ## 13. M3 · 可选增强（标签 / 平台适配器 / 双向完成）
@@ -1152,6 +1191,7 @@ message 为空时回退 `error.code`（输出 `网络/系统错误（ECONNREFUSE
 | EXT-14 | 【增强】 | 单实例约束 `replicas: 1`（官方桌面端天然单进程） | BASE-29 | 多实例重复发送 | M1 |
 | EXT-15 | 【官方无】 | 纯只读访问 Cloud API（官方客户端会写任务，本服务新增此边界） | — | 放开需评估 `rev` 冲突 | M0 起 |
 | EXT-20 | 【官方无】 | 分级日志 `NOTIFY_LOG_LEVEL` + CLI `--log-level`（debug/info/warn/error/silent，默认 `info`；统一 URL 脱敏；命令输出不受级别过滤） | — | 固定输出全部诊断（等价 `debug`） | v1.13 |
+| EXT-21 | 【官方无】 | 消息时间显示格式 `NOTIFY_TIME_FORMAT`（默认 `yyyy-MM-dd HH:mm:ss`，按业务时区；仅影响邮件/平台文本，JSON 仍 ISO） | — | 全部显示 ISO 8601 | v1.25 |
 
 > EXT-08 不改变 BASE-21…27 的触发点计算，60s 内到点仍由 BASE-27 的 5 分钟窗口覆盖。EXT-15：v0.4 起移除「回写 `pushCount`」，PATCH 会抬高 `rev` 并触发所有客户端同步。
 

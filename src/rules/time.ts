@@ -12,6 +12,7 @@ export interface ZonedParts {
   day: number;
   hour: number;
   minute: number;
+  second: number;
   /** 0=周日，和官方 weekly-review 的 day 语义一致。 */
   weekday: number;
   /** YYYY-MM-DD，摘要去重键用它（BASE-29）。 */
@@ -51,9 +52,38 @@ export function getZonedParts(epochMs: number, timeZone: string): ZonedParts {
     day,
     hour: value('hour'),
     minute: value('minute'),
+    second: value('second'),
     weekday: Math.max(0, weekdayNames.indexOf(weekdayLabel)),
     dateKey: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
   };
+}
+
+/** 消息里显示时间的默认格式（EXT-21【官方无】），可按 NOTIFY_TIME_FORMAT 覆盖。 */
+export const DEFAULT_TIME_FORMAT = 'yyyy-MM-dd HH:mm:ss';
+
+/**
+ * 把时间戳按指定时区渲染成人类可读文本。
+ *
+ * 支持的 token：`yyyy`（四位年）、`MM`（两位月）、`dd`（两位日）、
+ * `HH`（24 小时制两位时）、`mm`（两位分）、`ss`（两位秒）。
+ * 其它字符原样保留，所以 `yyyy/MM/dd HH:mm` 这类写法也能用。
+ *
+ * 为什么不用 toLocaleString：不同 Node / Bun / ICU 版本输出的分隔符与顺序不一样，
+ * 日志与消息里会忽中忽西；这里自己拼，跨运行时完全一致。
+ */
+export function formatDateTime(epochMs: number, timeZone: string, pattern: string): string {
+  const parts = getZonedParts(epochMs, timeZone);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  const tokens: Record<string, string> = {
+    yyyy: String(parts.year),
+    MM: pad(parts.month),
+    dd: pad(parts.day),
+    HH: pad(parts.hour),
+    mm: pad(parts.minute),
+    ss: pad(parts.second),
+  };
+  // 用一次性正则替换所有 token，避免「先把 MM 换成 08，再被后来的 m 规则破坏」这类顺序坑。
+  return pattern.replace(/yyyy|MM|dd|HH|mm|ss/g, token => tokens[token] ?? token);
 }
 
 /** 解析 "HH:MM"，非法输入返回 00:00 并由调用方决定是否启用。 */

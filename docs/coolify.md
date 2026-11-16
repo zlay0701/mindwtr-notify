@@ -1,6 +1,6 @@
 # 在 Coolify 上部署 Notify
 
-> 对应 `spec.md` **v1.24** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 对应 `spec.md` **v1.25** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
 > 代码已在公有仓库 `https://github.com/zlay0701/mindwtr-notify`（main），可直接部署。
 > 本文只讲 Coolify。原生 `docker compose` 见 [部署指南](deployment.md)，配置项含义见
 > [配置参考](configuration.md)，管理页用法见 [页面操作手册](admin-guide.md)，

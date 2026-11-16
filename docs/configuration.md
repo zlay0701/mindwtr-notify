@@ -1,6 +1,6 @@
 # Notify 配置参考
 
-> 对应 `spec.md` **v1.24**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
+> 对应 `spec.md` **v1.25**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
 > 管理页用法见 [页面操作手册](admin-guide.md)，调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，  
 > 出站 POST 的完整数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)。  
 > 本文所有示例都用占位符，**不含任何真实凭据**。
@@ -84,6 +84,7 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 | `NOTIFY_STATE_PATH`   | `data/notify.sqlite` | 状态库路径；Compose 里被覆盖为 `/app/data/notify.sqlite`                                           | EXT-06【增强】       |
 | `HEALTHZ_PORT`        | `8788`               | `/healthz` 与 `/admin` 共用端口                                                              | EXT-12【官方无】      |
 | `HEALTHZ_TOKEN`       | 空                    | 非空时 `/healthz` 需要 Bearer 鉴权；healthcheck 会自动带上它                                          | EXT-12【官方无】      |
+| `NOTIFY_TIME_FORMAT`  | `yyyy-MM-dd HH:mm:ss` | 人看的文本里时间的显示格式（业务时区渲染）；结构化 JSON 仍是 ISO，详见 §4.2.2 | EXT-21【官方无】      |
 | `NOTIFY_LOG_LEVEL`    | `info`               | 运行时日志级别：`debug` / `info` / `warn` / `error` / `silent`；可用 CLI `--log-level=` 临时覆盖，详见 §9 | EXT-20【官方无】      |
 
 #### 4.2.1 `TZ` 与 `NOTIFY_TIMEZONE` 的区别（只配一个会出问题）
@@ -110,6 +111,28 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 
 > 写 `TZ` 时**不要加行尾注释**：本项目的 `.env` 解析器不剥离注释，
 > `TZ=Asia/Shanghai  # 北京` 会让时区字符串非法，Bun / Node 静默回退到 UTC。
+
+#### 4.2.2 时间显示格式（`NOTIFY_TIME_FORMAT`）
+
+只影响**人看的文本**：邮件正文、钉钉 / 企微 / 飞书消息。
+`generic` 通道的 JSON **永远是 ISO 8601**（`2026-11-16T15:00:00.000Z`），
+因为接收端要能机器解析 —— 显示格式不能污染协议。
+
+| token | 含义 | 示例 |
+|---|---|---|
+| `yyyy` | 四位年 | `2026` |
+| `MM` | 两位月 | `11` |
+| `dd` | 两位日 | `16` |
+| `HH` | 24 小时制 | `23` |
+| `mm` | 分 | `00` |
+| `ss` | 秒 | `00` |
+
+- 默认 `yyyy-MM-dd HH:mm:ss`，按 `NOTIFY_TIMEZONE`（默认 `Asia/Shanghai`）渲染，
+  所以看到的是**本地时间**，不是 UTC。
+- 可自由组合：`yyyy/MM/dd HH:mm`、`MM-dd HH:mm`、`yyyy-MM-dd` 都支持。
+- **仅日期字段不会被补时刻**：`2026-11-16` 仍然显示 `2026-11-16`，不会变成 `2026-11-16 00:00:00`。
+- 一个 token 都没有（例如误写 `date`）会回退默认值，避免消息里出现一坨无意义字面量。
+- 写这一行时不要加行尾注释：`.env` 解析器不剥离注释（见 §7）。
 
 ### 4.3 与官方一致的任务 / 摘要设置
 
