@@ -1,6 +1,6 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-16 09:20（v1.19 Coolify 文档按现状修订）· 对应 `spec.md` **v1.19**
+> 生成时间：2026-11-13 · 最后整理：2026-11-16 10:35（v1.20 进程时区 TZ 可配置）· 对应 `spec.md` **v1.20**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
@@ -207,6 +207,15 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
 另加 §0「三步快速路径」。Coolify 侧**仍未实际部署**，首次 Deploy 由用户执行。
 详见 `spec.md` §12.10。
 
+**v1.20 进程时区 TZ 可配置（2026-11-16 10:35）**：纯编排 + 文档，产品代码零改动。
+两份编排的 `environment` 各加 `TZ: ${TZ:-Asia/Shanghai}`（写成插值才能被 `.env` 覆盖），
+`.env.example` 补该键（注释单独占行）。原因是 Mindwtr 的 `dueDate` 可以不带时区，
+`Date.parse` 按进程时区解释，而镜像默认 UTC → 提醒晚 8 小时且不报错。
+实测容器内 Bun：不设 `TZ` 得 `10:11Z`（北京 18:11），`TZ=Asia/Shanghai` 得 `02:11Z`
+（北京 10:11，与本机 Node 毫秒值一致）；镜像无 tzdata 但 Bun 自带时区数据，无需改 Dockerfile。
+文档：配置参考新增 §4.2.1、部署指南检查清单第 7 条与故障表、Coolify 变量清单、README。
+`npm test` 仍 85/85。详见 §4 第 22 条与 `spec.md` §12.11。
+
 ---
 
 ## 4. 已确认的实测事实（不要重复花积分探测）
@@ -389,6 +398,23 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
       `GET /repos/zlay0701/mindwtr-notify` 为 404；本机 `git credential` 凭据对 API 返回 401。
       **需用户在 GitHub 网页创建空的公有仓库**（不勾 README / LICENSE），之后即可推送并触发 CI。
     - 仓库不可用期间，用 `git archive HEAD` 导出与仓库一致的白名单内容做等价远端验证。
+22. **v1.20 进程时区 TZ 可配置（2026-11-16）**：编排 + 文档，产品代码零改动。
+    - 触发点：用户报「设了提醒却没提醒」，排查发现除「没有服务在跑」外，还埋着一个
+      **部署后必然踩**的时区坑：`dueDate` 允许不带时区（`2026-11-16T10:11`），
+      `Date.parse` 按进程时区解释，而 `oven/bun:1.3-alpine` 默认 UTC。
+    - 改动：`compose.yaml` / `compose.coolify.yaml` 的 `environment` 各加
+      `TZ: ${TZ:-Asia/Shanghai}`；`.env.example` 加 `TZ=Asia/Shanghai`（注释写在上一行）。
+      **必须写成插值**：`environment` 优先级高于 `env_file`，写死会让 `.env` 的覆盖失效。
+    - 远端实测（Compose v5.7.1 + 镜像内 Bun，禁网、未部署）：
+      无配置→`Asia/Shanghai`；`.env` 设 `America/New_York`→生效；shell 设 `Europe/Berlin`→覆盖 `.env`；
+      两份编排 `config --quiet` 均退出 0。容器内 Bun：不设 `TZ`→`zone=UTC`、
+      `parse=2026-11-16T10:11:00.000Z`、`ms=1794823860000`；`TZ=Asia/Shanghai`→
+      `parse=2026-11-16T02:11:00.000Z`、`ms=1794795060000`（与本机 Node 一致）。
+    - 镜像内**没有 tzdata、没有 `/etc/localtime`**，但 Bun 自带时区数据即可正确解析 —— 不用改 Dockerfile。
+    - 文档：`docs/configuration.md` 新增 §4.2.1（分工表 + 实测 + 行尾注释陷阱 + tzdata 结论）；
+      `docs/deployment.md` compose 逐段说明 / §6 两条通道（原来写「没有任何 `${}`」，已修正）/
+      检查清单第 7 条 / 故障表「晚 8 小时」；`docs/coolify.md` 变量清单与常见坑；`README.md` 两处。
+    - `npm test` 85/85；未改 BASE 规则、strict 基线、`.env`。
 21. **v1.18 仓库上线 + CI 全绿 + 从 GitHub 部署（2026-11-15）**：纯文档，产品代码零改动。
     - 用户在 GitHub 网页创建空仓库并执行 `git push -u origin main` 后，远端 main = `63c382c`，
       本地与远端同步；`git ls-files` 54 个，无 `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite。
@@ -442,7 +468,7 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
 | `README.md` | 项目速览、命令、目录结构、约束 |
 | `docs/cloud-api.md` | v1.12：Mindwtr Cloud API 调用清单（运行时 / 白名单允许但不用 / 探针与造数脚本 / 主动禁止，含参数、频率、认证与响应要点） |
 | `docs/coolify.md` | v1.16 起：Coolify 部署教程；v1.19 按「仓库已上线」修订前置条件并新增 §0 三步快速路径 |
-| `compose.coolify.yaml` | v1.16：Coolify 专用编排（`${VAR}` 注入、无 env_file/container_name/ports，只读写开关故意不暴露） |
+| `compose.coolify.yaml` | v1.16：Coolify 专用编排（`${VAR}` 注入、无 env_file/container_name/ports，只读写开关故意不暴露）；v1.20 加 `TZ: ${TZ:-Asia/Shanghai}` |
 | `docs/webhook-payload.md` | v1.14：**出站** Webhook 数据格式清单（通用 `generic` 完整字段表、14 种 event 与 JSON 样例、验签头、钉钉/企微/飞书 body、重试与幂等、隐私边界） |
 | `docs/deployment.md` | v1.11：Docker Compose 部署与运维指南（§1.1 附接口摘要，含环境变量两条通道、升级回滚备份、故障排查、安全边界） |
 | `docs/configuration.md` | v1.11：全量配置参考（优先级 / 启动校验 / 三态标记 / Webhook 验签协议 / 典型样例） |
@@ -474,7 +500,7 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
 | `tests/webhook-response.test.ts` | v1.15：业务码解析、200 + errcode 失败不重试、兼容与脱敏、wecom 适配器链路，11 个用例 |
 | `package.json` | npm 脚本（零运行时依赖）：`test` / `dry-run` / `once` / `start` / `probe` / `seed:test` |
 | `Dockerfile` / `compose.yaml` | Bun 1.3 镜像（只 COPY `package.json` + `src/`）/ `replicas: 1`、`healthcheck`、`read_only: true` + `tmpfs`、healthz 只映射回环、头部部署前检查清单 |
-| `compose.coolify.yaml` | v1.16：Coolify 专用编排，见上方文件地图条目 |
+| `compose.coolify.yaml` | v1.16：Coolify 专用编排；v1.20 加 `TZ`，见上方文件地图条目 |
 | `.github/workflows/ci.yml` | v1.17：零密钥 CI（单测 / 镜像构建 / 编排校验 / **no-secrets 敏感文件防呆**） |
 | `scripts/agent-git.sh` | 2026-11-15：以 `Notify Agent` 身份执行 git 命令，让助手提交与所有者提交在历史里可区分；只覆盖本次命令，不改 `.git/config` |
 | `.dockerignore` | 构建上下文排除规则的单一事实来源：排除 `.env` / `scripts/` / `tests/` / `data/` 与联调文件，防止凭据与造数脚本进镜像 |
@@ -598,3 +624,7 @@ NODE_USE_ENV_PROXY=1 npm run dry-run
   （`${VAR}` 白名单注入、不发布宿主端口、凭据只在面板）。Coolify 版没发布端口，
   宿主机 `curl 127.0.0.1:8788` 不通，探活得进容器；另外**必须关掉 PR 预览部署**，
   否则预览实例会连同一套渠道重复发提醒。
+- **时区要成对配**：`TZ` 管「不带时区的日期怎么解析」、`NOTIFY_TIMEZONE` 管「时刻怎么渲染」。
+  镜像默认 UTC，只配后者会让提醒晚 8 小时且不报错。两份编排已默认 `TZ: ${TZ:-Asia/Shanghai}`；
+  改的时候别写死值（`environment` 优先级高于 `env_file`），也别给 `TZ` 加行尾注释。
+  排查「时间差 8 小时」先看容器内 `Intl.DateTimeFormat().resolvedOptions().timeZone`。

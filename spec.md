@@ -3,7 +3,27 @@
 > 项目名：**Notify** · 包名/仓库/容器：`mindwtr-notify` · CLI：`mwnotify` · 中文：Mindwtr 提醒服务
 > 命名含义：取「通知」本义；工程标识保留 `mindwtr-` 前缀（与官方 `mindwtr-mcp` 风格一致），避免与通用词 `notify` 混淆。定位：不接管客户端提醒、不改写任务数据，只把按官方规则算出的触发点转发到邮件 / Webhook。
 >
-> 版本：v1.19 · 日期：2026-11-16
+> 版本：v1.20 · 日期：2026-11-16
+> **v1.20 变更**：**把进程时区 `TZ` 做成可配置项（默认 `Asia/Shanghai`），修掉容器内「提醒晚 8 小时」的隐患**。
+> 起因：排查用户「设了提醒却没提醒」时发现，Mindwtr 的 `dueDate` 可以写成**不带时区**的
+> `2026-11-16T10:11`，`Date.parse` 会按**进程时区**解释；而镜像 `oven/bun:1.3-alpine`
+> 默认 UTC、两份编排都没设 `TZ`，于是同一批任务在本机（UTC+8）算得对、部署到容器后晚 8 小时到点，
+> 且不报任何错误。实测（容器内 Bun，字符串 `2026-11-16T10:11`）：
+> 不设 `TZ` → `2026-11-16T10:11Z`（北京 18:11，`ms=1794823860000`）；
+> `TZ=Asia/Shanghai` → `2026-11-16T02:11Z`（北京 10:11，`ms=1794795060000`），与本机 Node 完全一致。
+> ① `compose.yaml` 与 `compose.coolify.yaml` 的 `environment` 各加一行 `TZ: ${TZ:-Asia/Shanghai}`。
+> 写成插值而非写死的原因：`environment` 优先级高于 `env_file`，写死会让 `.env` 里的覆盖失效；
+> 实测三道优先级均正确（无配置→`Asia/Shanghai`；`.env` 设 `America/New_York`→生效；
+> shell 设 `Europe/Berlin`→覆盖 `.env`）。
+> ② `.env.example` 增加 `TZ=Asia/Shanghai`，且**刻意不带行尾注释** —— 本项目的 `.env` 解析器
+> 不剥离注释（实测 `NOTIFY_TIMEZONE` 带注释时值会连注释一起保留），`TZ` 被污染会静默回退 UTC。
+> ③ 文档同步：`docs/configuration.md` 新增 §4.2.1（`TZ` vs `NOTIFY_TIMEZONE` 对照表 + 实测数据 +
+> 镜像无需 tzdata 的结论）、§8 生效方式；`docs/deployment.md` 的 compose 逐段说明 / 两条通道 /
+> 部署前检查清单（新第 7 条）/ 故障排查表（「晚 8 小时」）；`docs/coolify.md` 变量清单与常见坑；
+> `README.md` 配置要点与检查清单。
+> ④ 未改产品代码、`BASE` 规则与 strict 基线：`TZ` 由运行时（Node / Bun）读取，应用不做解析。
+> 实测镜像内**没有 tzdata、没有 `/etc/localtime`**，Bun 自带时区数据即可正确解析，无需改 `Dockerfile`。
+> `npm test` 仍 **85/85**；两份编排 `config --quiet` 退出 0。详见 §12.11。
 > **v1.19 变更**：**按「代码已在 GitHub」更新 Coolify 部署文档**（纯文档，产品代码 `src/` 一行未动）。
 > `docs/coolify.md` 的前置条件此前仍写着「先 `git init` 再推仓库」，与现状不符，已改为
 > 「代码来源：已就绪」（公有仓库免 Deploy Key / GitHub App），并新增 §0「三步快速路径」；
@@ -781,6 +801,40 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 卷 / 副本 / 预览部署的约束、验证命令、常见坑表、安全边界——这些与仓库地址无关，复核后仍然有效。
 
 **边界**：Coolify 侧仍未创建资源或部署，首次 Deploy 由用户执行；本次未联网、未发任何渠道消息。
+
+### 12.11 v1.20 进程时区 `TZ` 可配置（2026-11-16）
+
+**问题**：Mindwtr 的任务时间字段允许不带时区（`2026-11-16T10:11`），`Date.parse` 按进程时区解释。
+镜像默认 UTC，若不在容器里设 `TZ`，同一任务在本机算得对、在容器里晚 8 小时到点，而且**没有任何报错**——
+排查时容易被误判成「服务没跑」或「时区只是显示问题」。
+
+| 位置 | 改动 |
+|---|---|
+| `compose.yaml` | `environment` 新增 `TZ: ${TZ:-Asia/Shanghai}`（带注释说明为什么必须写成插值） |
+| `compose.coolify.yaml` | 同上；放在「全局 / 日志」段，与 `NOTIFY_TIMEZONE` 相邻便于对照 |
+| `.env.example` | 新增 `TZ=Asia/Shanghai`，注释写在**上一行**（避免被解析器当成值） |
+| `docs/configuration.md` | 新增 §4.2.1：两个时区变量的分工、实测毫秒值对照、tzdata 结论、行尾注释陷阱；§8 加生效方式 |
+| `docs/deployment.md` | compose 逐段说明加 `TZ` 行；§6「两条通道」修正为「只有 `TZ` 一处 `${}`」；检查清单加第 7 条；故障表加「晚 / 早 8 小时」 |
+| `docs/coolify.md` | 环境变量清单加 `TZ`；步骤 3 要点与常见坑各加一条 |
+| `README.md` | 配置要点与生产部署前检查清单同步 |
+
+**实测记录**（远端真实 Docker Compose v5.7.1 + 镜像内 Bun，全程禁网、未部署）：
+
+- `compose.yaml`：无配置 → `TZ: Asia/Shanghai`；`.env` 设 `America/New_York` → 生效；
+  shell 设 `Europe/Berlin` → 覆盖 `.env`；`config --quiet` 退出 0。
+- `compose.coolify.yaml`（干净目录、无 `.env`）：`TZ` / `NOTIFY_TIMEZONE` 均为 `Asia/Shanghai`，退出 0；
+  `TZ=UTC` 时渲染为 `UTC`。
+- 容器内 Bun：不设 `TZ` → `zone=UTC`、`parse=2026-11-16T10:11:00.000Z`、`ms=1794823860000`；
+  `TZ=Asia/Shanghai` → `zone=Asia/Shanghai`、`parse=2026-11-16T02:11:00.000Z`、`ms=1794795060000`
+  （与本机 Node 的 `1794795060000` 一致）；`TZ=UTC` 与不设等价。
+- 镜像内 `ls /etc/localtime` → 无、`ls /usr/share/zoneinfo/Asia/Shanghai` → 无，
+  说明 Bun 自带时区数据，`TZ` 与 `Intl` 均不依赖 tzdata。
+
+**为什么 `TZ` 不做成应用配置项**：它必须在进程启动时由运行时读取；应用若在 `loadConfig` 里改
+`process.env.TZ`，Node 的时区缓存与 Bun 的行为都不保证一致，反而制造「看起来生效、实际没生效」的坑。
+因此它保持为容器/系统级变量，应用只读 `NOTIFY_TIMEZONE` 负责渲染，文档明确要求两者一致。
+
+**未改**：产品代码、`BASE` 规则、strict 基线、`Dockerfile`、`.env`。`npm test` **85/85**。
 
 ---
 

@@ -1,6 +1,6 @@
 # Notify Webhook 输出数据格式清单
 
-> 对应 `spec.md` **v1.19**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
+> 对应 `spec.md` **v1.20**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
 > 权威实现：`src/dispatch/message.ts`（通用结构）、`src/dispatch/adapters.ts`（平台适配）、
 > `src/dispatch/webhook.ts`（签名与重试）、`src/dispatch/index.ts`（渠道分发）。
 > 本文所有样例都由本地假数据实跑生成，域名一律用 `.invalid` 占位，**不含任何真实凭据或 URL**。

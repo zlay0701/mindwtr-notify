@@ -38,6 +38,10 @@ services:
       MINDWTR_TOKEN: ${MINDWTR_TOKEN:?}
 
       # ---- 全局 / 日志 ----
+      # 进程时区：决定「不带时区」的日期字符串（如 2026-11-16T10:11）按哪个时区解析。
+      # 镜像默认 UTC，不设会让提醒晚 8 小时；这里给 Coolify 面板预填默认值，可自行改。
+      # 与 NOTIFY_TIMEZONE 保持一致：前者管日期解析，后者管时刻渲染。
+      TZ: ${TZ:-Asia/Shanghai}
       NOTIFY_TIMEZONE: ${NOTIFY_TIMEZONE:-Asia/Shanghai}
       NOTIFY_LOG_LEVEL: ${NOTIFY_LOG_LEVEL:-info}
       NOTIFY_STRICT: ${NOTIFY_STRICT:-false}

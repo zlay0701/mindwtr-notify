@@ -1,6 +1,6 @@
 # Notify 配置参考
 
-> 对应 `spec.md` **v1.19**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
+> 对应 `spec.md` **v1.20**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
 > 管理页用法见 [页面操作手册](admin-guide.md)，调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，  
 > 出站 POST 的完整数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)。  
 > 本文所有示例都用占位符，**不含任何真实凭据**。
@@ -75,6 +75,7 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 
 | 键                     | 默认值                  | 说明                                                                                      | 标记               |
 | --------------------- | -------------------- | --------------------------------------------------------------------------------------- | ---------------- |
+| `TZ`                  | `Asia/Shanghai`      | **进程时区**：决定「不带时区」的日期字符串（如 `2026-11-16T10:11`）按哪个时区解析；镜像默认 UTC，不设会晚 8 小时。见 §4.2.1 | —（容器运行时读取，应用不解析） |
 | `NOTIFY_TIMEZONE`     | `Asia/Shanghai`      | 摘要时刻、静默时段按此时区判定                                                                         | —（时区渲染见 BASE-23） |
 | `NOTIFY_STRICT`       | `false`              | `true` 强制关闭全部 A 类扩展，用于一致性验收                                                             | 【官方无】验收机制        |
 | `NOTIFY_POLL_SECONDS` | `60`                 | 轮询间隔（秒），官方桌面端 15s；设 15 可完全对齐，不得低于 15                                                    | EXT-08【增强】       |
@@ -84,6 +85,31 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 | `HEALTHZ_PORT`        | `8788`               | `/healthz` 与 `/admin` 共用端口                                                              | EXT-12【官方无】      |
 | `HEALTHZ_TOKEN`       | 空                    | 非空时 `/healthz` 需要 Bearer 鉴权；healthcheck 会自动带上它                                          | EXT-12【官方无】      |
 | `NOTIFY_LOG_LEVEL`    | `info`               | 运行时日志级别：`debug` / `info` / `warn` / `error` / `silent`；可用 CLI `--log-level=` 临时覆盖，详见 §9 | EXT-20【官方无】      |
+
+#### 4.2.1 `TZ` 与 `NOTIFY_TIMEZONE` 的区别（只配一个会出问题）
+
+两个都叫「时区」，但管的是不同环节，必须**同时设置且保持一致**：
+
+| 变量 | 谁读 | 管什么 | 不配的后果 |
+|---|---|---|---|
+| `TZ` | 运行时（Node / Bun 进程） | **日期字符串怎么解析成时间戳**：Mindwtr 的 `dueDate` 若不带时区后缀（`2026-11-16T10:11`），按这个时区解释 | 镜像默认 UTC → 提醒比预期 **晚 8 小时**，且没有任何报错 |
+| `NOTIFY_TIMEZONE` | 应用（`src/config.ts`） | **时刻怎么渲染**、摘要与静默时段怎么判定 | 日志时间戳按 UTC 显示，摘要时刻偏移 |
+
+实测（同一字符串 `2026-11-16T10:11`，容器内 Bun，镜像 `oven/bun:1.3-alpine`）：
+
+| 容器 `TZ` | 解析结果 | 毫秒值 | 北京显示 |
+|---|---|---|---|
+| 不设（镜像默认 UTC） | `2026-11-16T10:11:00.000Z` | `1794823860000` | **18:11** ❌ |
+| `Asia/Shanghai` | `2026-11-16T02:11:00.000Z` | `1794795060000` | **10:11** ✅（与本机 Node 完全一致） |
+
+`compose.yaml` 与 `compose.coolify.yaml` 都写成 `TZ: ${TZ:-Asia/Shanghai}`：
+不配就是北京时间；想改就在 `.env`（或 Coolify 面板）里设 `TZ`，**别只改其中一个**。
+
+> 镜像里**没有 tzdata、也没有 `/etc/localtime`**，但 Bun 自带时区数据，
+> `TZ=Asia/Shanghai` 与 `Intl.DateTimeFormat` 都能正常工作 —— **不需要为时区往镜像里装 tzdata**。
+
+> 写 `TZ` 时**不要加行尾注释**：本项目的 `.env` 解析器不剥离注释，
+> `TZ=Asia/Shanghai  # 北京` 会让时区字符串非法，Bun / Node 静默回退到 UTC。
 
 ### 4.3 与官方一致的任务 / 摘要设置
 
@@ -328,6 +354,7 @@ NOTIFY_CONFIG=notify-namespaces.json
 | 只看计划、不重建       | 本机 `npm run dry-run`，或容器内 `bun run src/cli.ts --dry-run --strict`       |
 | **临时**调日志级别    | CLI 加 `--log-level=debug`，**不用改 `.env`、不用重建容器**                         |
 | **长期**调日志级别    | 改 `.env` 的 `NOTIFY_LOG_LEVEL` 后 `docker compose up -d --force-recreate` |
+| 调 `TZ` / `NOTIFY_TIMEZONE` | 改 `.env`（或 Coolify 面板）后 `docker compose up -d --force-recreate`；两者要一起改，否则差 8 小时 |
 
 
 > 改完先 `docker compose ps` 确认仍是 `healthy`，再看一眼 `curl http://127.0.0.1:8788/healthz`。

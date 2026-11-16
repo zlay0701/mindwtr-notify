@@ -1,6 +1,6 @@
 # 在 Coolify 上部署 Notify
 
-> 对应 `spec.md` **v1.19** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 对应 `spec.md` **v1.20** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
 > 代码已在公有仓库 `https://github.com/zlay0701/mindwtr-notify`（main），可直接部署。
 > 本文只讲 Coolify。原生 `docker compose` 见 [部署指南](deployment.md)，配置项含义见
 > [配置参考](configuration.md)，管理页用法见 [页面操作手册](admin-guide.md)，
@@ -126,6 +126,7 @@ Deploy Key / GitHub App，并把 §4 步骤 1 的仓库地址换成你自己的�
 ```dotenv
 MINDWTR_BASE_URL=https://mindwtr-cloud.zlay.dpdns.org
 MINDWTR_TOKEN=<你的 FULL bearer token>
+TZ=Asia/Shanghai
 NOTIFY_TIMEZONE=Asia/Shanghai
 NOTIFY_LOG_LEVEL=info
 WEBHOOK_ENABLED=true
@@ -145,6 +146,8 @@ NOTIFY_ADMIN_RETRY=false
 - **`MINDWTR_TOKEN` 是唯一必填项**：编排里写成 `${MINDWTR_TOKEN:?}`，为空时 Coolify 会阻止部署。
 - `MINDWTR_BASE_URL` 默认已是**生产地址**。开发期本机 `.env` 常指向测试服务器，
   **部署时务必确认这里没有误填测试地址**，否则提醒内容会来自测试库。
+- **`TZ` 与 `NOTIFY_TIMEZONE` 一起填**：容器默认是 UTC，`TZ` 决定「不带时区」的日期怎么解析，
+  缺了会让提醒晚 8 小时、且不报错（编排里已预填 `Asia/Shanghai`，见 [配置参考 §4.2.1](configuration.md)）。
 - `NOTIFY_WEBHOOK_ADAPTERS=wecom` 是关键：漏配会静默退化成 `generic`，把结构化 JSON 发给企微。
 - `WEBHOOK_SECRET=` / `NOTIFY_WEBHOOK_SECRETS=` **就留空**（企微无签名）。
   不要写 `# 留空即可` 之类的行尾注释，注释必须独占一行。
@@ -254,6 +257,7 @@ bun run src/cli.ts --test-webhook --log-level=debug
 | 构建成功但容器 `unhealthy` | 看容器日志；`HEALTHZ_TOKEN` 配了但 healthcheck 应会自动带 token（已验证）。确认 `/app/data` 可写、`tmpfs /tmp` 存在 |
 | 用「Docker Compose Empty」后构建失败 | 本项目 `build: .` 需要 Git 源码上下文，改走 Git 仓库 + Compose Build Pack，或改用预构建 `image:` |
 | 提醒内容来自测试库 | `MINDWTR_BASE_URL` 误填测试地址；改回生产地址并 Redeploy |
+| 提醒时间差 8 小时 | 容器进程时区是 UTC：面板里把 `TZ` 设成 `Asia/Shanghai`（与 `NOTIFY_TIMEZONE` 一致），然后 Redeploy；见 [配置参考 §4.2.1](configuration.md) |
 | 企微收不到消息，但日志说成功 | 检查 `NOTIFY_WEBHOOK_ADAPTERS`；v1.15 起 `200 + errcode!=0` 会判为业务失败，看具体 `errcode`，见 [webhook-payload.md §10](webhook-payload.md) |
 | 邮件渠道全失败 | 部分 VPS 出站 587/465 被拒（本项目已在目标 VPS 实测），属网络策略；改用 Webhook 或放行端口 / 中继 |
 | 收到重复提醒 | 是否开了预览部署、扩了副本、或删过卷；`docker compose ps` 看实例数 |

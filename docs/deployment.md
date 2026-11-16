@@ -1,6 +1,6 @@
 # Notify 部署指南（Docker Compose）
 
-> 对应 `spec.md` **v1.19**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
+> 对应 `spec.md` **v1.20**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
 > 每个配置项的含义见 [配置参考](configuration.md)，管理页怎么用见 [页面操作手册](admin-guide.md)，
 > 调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，
 > 出站 POST 的数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)，
@@ -122,6 +122,7 @@ docker compose logs --tail 20 mindwtr-notify        # 首轮「计划 N 条 / �
 | 4 | `replicas: 1`，且没有第二份 Compose 指向同一状态库卷 | 多实例会重复投递 |
 | 5 | `NOTIFY_STATE_PATH` 仍指向卷 `/app/data` | 容器根文件系统 `read_only: true`，改到别处会写失败 |
 | 6 | 若用邮件渠道，VPS 出站 587 / 465 已放行 | 已有 VPS 实测 `ECONNREFUSED`（宿主机直连同样如此），属网络策略，需放行端口或改中继 |
+| 7 | `TZ` 与 `NOTIFY_TIMEZONE` 一致（默认都是 `Asia/Shanghai`） | 前者决定「不带时区」的日期怎么解析、后者决定时刻怎么渲染；不一致会差 8 小时且不报错 |
 
 ---
 
@@ -134,6 +135,7 @@ docker compose logs --tail 20 mindwtr-notify        # 首轮「计划 N 条 / �
 | `restart` | `unless-stopped` | 宿主机重启后自动拉起 |
 | `env_file` | `.env` | 把文件里每条 `KEY=VALUE` **原样注入容器** |
 | `environment` | `NOTIFY_STATE_PATH=/app/data/notify.sqlite`、`HEALTHZ_PORT=8788` | 显式键优先级高于 `env_file`，会覆盖 `.env` 里的同名项 |
+| `TZ` | `${TZ:-Asia/Shanghai}` | **进程时区**：镜像默认 UTC，会让「不带时区」的日期晚 8 小时解析；写成插值才能被 `.env` 覆盖，详见 [配置参考 §4.2.1](configuration.md) |
 | `volumes` | `notify-data:/app/data` | 去重记录持久化，容器重建不丢；**删卷会重发** |
 | `read_only` | `true`（EXT-15【官方无】） | 根文件系统只读，进程改不了镜像里的代码 |
 | `tmpfs` | `/tmp:size=16m,mode=1777` | Bun 启动与 healthcheck 需要可写临时目录 |
@@ -155,7 +157,10 @@ docker compose logs --tail 20 mindwtr-notify        # 首轮「计划 N 条 / �
 shell 环境变量  >  docker compose --env-file <文件>  >  compose 文件所在目录的 .env
 ```
 
-本项目 `compose.yaml` 里**没有任何 `${}`**，所以项目根目录的 `.env` 不会被用于插值，也不会因此自动进容器。
+本项目 `compose.yaml` 里只有**一处** `${}` —— `TZ: ${TZ:-Asia/Shanghai}`（进程时区，见 [配置参考 §4.2.1](configuration.md)）。
+其余键一律不写 `${}`，所以 `.env` 主要走通道 ②。
+`TZ` 这处插值也会被同目录 `.env` 的值覆盖，而 `environment` 的优先级高于 `env_file` ——
+正因如此，它必须写成插值而不能写死 `Asia/Shanghai`，否则在 `.env` 里改时区不会生效。
 
 **② 运行期注入**（容器里真正能看到的值）
 
@@ -169,7 +174,7 @@ shell 环境变量  >  docker compose --env-file <文件>  >  compose 文件所�
    与服务无关，不要放进去；模板里的空值项也可删掉。
 2. 改了 `.env` 后，用 `docker compose up -d --force-recreate` 让新值生效（Compose 检测到配置变化通常会自己重建，显式指定更稳）。
 3. 想让某个值可被 shell 覆盖，得在 `compose.yaml` 写成 `${HEALTHZ_PORT:-8788}`；
-   现在写死 `"8788"`，在 shell 里设 `HEALTHZ_PORT` 是无效的。
+   现在写死 `"8788"`，在 shell 里设 `HEALTHZ_PORT` 是无效的。`TZ` 是唯一已经写成插值的例外。
 
 ---
 
@@ -267,6 +272,7 @@ docker compose up -d
 | Webhook 全部失败 | 接收端是否校验 `X-Notify-Signature` | 见 [配置参考 §5](configuration.md)；URL / 密钥不匹配或时间戳超出 5 分钟 |
 | **日志显示成功但群里没消息** | `node src/cli.ts --test-webhook --log-level=debug` | 企微 / 钉钉 / 飞书可能回 `200 + errcode!=0`；v1.15 起会判为业务失败并写明错误码。同时确认 `NOTIFY_WEBHOOK_ADAPTERS` 与 URL 一一对应（漏配会退化成 `generic` 结构化 JSON），详见 [输出格式清单 §10](webhook-payload.md) |
 | 日志太少 / 想看每次 Cloud 请求 | `.env` 的 `NOTIFY_LOG_LEVEL`，或临时加 `--log-level=debug` | 默认 `info` 只打每轮汇总；debug 会显示路径、状态、耗时、计划与逐条触发点决策，详见 [配置参考 §9](configuration.md) |
+| 提醒比预期**晚 / 早 8 小时** | 容器内 `bun -e "console.log(Intl.DateTimeFormat().resolvedOptions().timeZone)"` | 进程时区是 UTC：`compose.yaml` 已默认 `TZ: ${TZ:-Asia/Shanghai}`，检查 `.env` 里是否覆盖成别的值（或写法带了注释），改完 `--force-recreate`。详见 [配置参考 §4.2.1](configuration.md) |
 | 收到重复提醒 | `docker compose ps`、卷是否被删过 | 是否起了两个副本、两套 Compose 共用一个卷、或执行过 `down -v` |
 | 管理页数据空白 / 401 | 页面右上角令牌输入框 | 填 `NOTIFY_ADMIN_TOKEN`（或 `HEALTHZ_TOKEN`）后点「刷新」，见 [操作手册](admin-guide.md) |
 
