@@ -246,7 +246,8 @@ SMTP 凭据仍完整注入容器，未来放行端口即可启用。
 候选 54 个文件无任何凭据）、`.gitignore` 加固、白名单提交 52 个文件，新增
 `.github/workflows/ci.yml`（单测 / 镜像构建 / 编排校验 / no-secrets 防呆），
 并把「所有改动提交到 `zlay0701/mindwtr-notify`、不许提交敏感信息」写入长期约定。
-仓库已上线：main = `63c382c`，GitHub Actions `CI` **completed / success**（三个 job 全绿），
+仓库已上线（首次上线 commit `63c382c`，后续文档提交 `587e823`；当前 main 以页首徽章为准）。
+GitHub Actions `CI` **连续两次 completed / success**（三个 job 全绿）；
 远端真实 `git clone` 后跑通 `npm test` 85/85、`docker build`、隔离 compose 部署
 （`healthz`/`admin` 200、`HEALTH=healthy`、`READONLY=true`），验证后已清理。详见 `spec.md` §12.9。
 

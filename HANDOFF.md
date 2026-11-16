@@ -193,7 +193,8 @@ scheduler / cloud / healthz 全面接入分级，debug 能看到每个 Cloud GET
 需用户在网页创建空的公有仓库后再推送。详见 §4 第 20 条与 `spec.md` §12.8。
 
 **v1.18 仓库上线与验证（2026-11-15 23:40）**：用户在网页建好空仓库并首次 `git push` 后全部打通。
-远端 main = `63c382c`（4 个 commit，作者 `Notify Agent`、**不签名**），受版本控制文件 54 个；
+首次上线时远端 main = `63c382c`（4 个 commit，作者 `Notify Agent`、**不签名**），受版本控制文件 54 个；
+后续文档提交 `587e823` 已推送并再次通过 CI；
 GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 / 镜像与编排校验 / 敏感信息防呆）
 全绿，徽章 passing；远端从 `github.com` 真实 clone 后 `npm test` 85/85、两份编排 `config --quiet`
 退出 0、`docker build` 成功、隔离 compose 部署 `healthz`/`admin` 200 且 `HEALTH=healthy` /
@@ -400,6 +401,9 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
     - 提交身份与签名：助手 = `Notify Agent` + 不签名；所有者 = `zlay0701` + 签名（Verified）。
     - 本机 `git push` 的 GCM 凭据曾报 `Invalid username or token`（GitHub 不支持密码认证），
       用户重新登录后恢复；**push 命令当时被环境安全策略拦截，未重试**，改由用户执行。
+    - 后续文档提交 `587e823` 推送后 CI 再次 **completed / success**（run `43780028017`），
+      三个 job 全绿；助手环境本身无法 push（直连 `github.com:443` 超时、代理对 git TLS 不兼容），
+      凡涉及推送一律由用户在本地执行。
 
 ---
 

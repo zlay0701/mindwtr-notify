@@ -5,7 +5,7 @@
 >
 > 版本：v1.18 · 日期：2026-11-15
 > **v1.18 变更**：**代码已推送到 GitHub 公有仓库，CI 全绿，远端从 GitHub clone 部署验证通过**（纯文档，产品代码 `src/` 一行未动）。
-> ① 仓库 `https://github.com/zlay0701/mindwtr-notify` 已上线（main = `63c382c`，54 个受版本控制的文件），
+> ① 仓库 `https://github.com/zlay0701/mindwtr-notify` 已上线（首次 `63c382c`、文档提交 `587e823`，54 个受版本控制的文件），
 > 本地与远端同步，推送前按白名单与 `.env` 真实值做了二次扫描，**零凭据**。
 > ② GitHub Actions `CI` 首次运行 **completed / success**：三个 job 全绿——
 > 「单元测试（Node 22）」7 步、「镜像与编排校验」9 步、「敏感信息防呆」6 步，失败步骤 0；徽章 passing。
@@ -744,9 +744,9 @@ token 时直接阻止部署；其余 `${VAR}` 留空即走代码内置默认值�
 
 | 项 | 结果 |
 |---|---|
-| 远端 main | `63c382c`（4 个 commit，作者 `Notify Agent`、未签名） |
+| 远端 main | 首次上线 `63c382c`（4 个 commit）；文档提交 `587e823` 已推送；作者 `Notify Agent`、未签名 |
 | 受版本控制文件 | 54 个；无 `.env` / `data/` / `.workbuddy/` / 私钥 / SQLite |
-| GitHub Actions `CI` | **completed / success**；3 个 job 全绿（单测 / 镜像与编排校验 / 敏感信息防呆），徽章 passing |
+| GitHub Actions `CI` | **连续两次 completed / success**（`63c382c` → run 43730537851，`587e823` → run 43780028017）；3 个 job 全绿（单测 / 镜像与编排校验 / 敏感信息防呆），徽章 passing |
 | 远端 clone 验证 | `git clone` commit `63c382c`；`npm test` 85/85；两份编排 `config --quiet` 退出 0；`docker build` 成功 |
 | 远端 compose 部署 | `healthz` 200、`admin` 200、`HEALTH=healthy`、`READONLY=true`、卷 `-> /app/data`；随后 `down` 并清理目录 / 卷 / 网络 |
 | 副作用 | 假 token + 不可达 Cloud 地址 + 渠道全关：不连真实云端、不发消息；`.env` 未改动 |
