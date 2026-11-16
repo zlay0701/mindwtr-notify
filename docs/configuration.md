@@ -1,6 +1,6 @@
 # Notify 配置参考
 
-> 对应 `spec.md` **v1.25**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
+> 对应 `spec.md` **v1.30**。模板在仓库根目录 `.env.example`；部署方式见 [部署指南](deployment.md) 与 [Coolify 教程](coolify.md)，  
 > 管理页用法见 [页面操作手册](admin-guide.md)，调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，  
 > 出站 POST 的完整数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)。  
 > 本文所有示例都用占位符，**不含任何真实凭据**。

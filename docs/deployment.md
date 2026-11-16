@@ -1,6 +1,6 @@
 # Notify 部署指南（Docker Compose）
 
-> 对应 `spec.md` **v1.25**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
+> 对应 `spec.md` **v1.30**。本文只讲「怎么跑起来、怎么运维」；规则以 `spec.md` 为准，
 > 每个配置项的含义见 [配置参考](configuration.md)，管理页怎么用见 [页面操作手册](admin-guide.md)，
 > 调用哪些云端接口见 [Cloud API 调用清单](cloud-api.md)，
 > 出站 POST 的数据格式见 [Webhook 输出数据格式清单](webhook-payload.md)，
@@ -294,7 +294,7 @@ docker compose up -d
 本机 Node 22 可直接跑 TypeScript，无需编译、零依赖：
 
 ```bash
-npm test                              # 85 个用例，纯本地
+npm test                              # 87 个用例，纯本地
 npm run dry-run                       # 只读跑一轮 strict 计划，不投递不写库
 node src/cli.ts --dry-run --strict --log-level=debug   # 同上，但打印完整诊断链路
 npm run once                          # 跑一轮并真实投递

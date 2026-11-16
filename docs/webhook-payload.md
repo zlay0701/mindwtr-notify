@@ -1,6 +1,6 @@
 # Notify Webhook 输出数据格式清单
 
-> 对应 `spec.md` **v1.25**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
+> 对应 `spec.md` **v1.30**。本文只回答一个问题：**Notify 发出的出站 POST 请求长什么样**。
 > 权威实现：`src/dispatch/message.ts`（通用结构）、`src/dispatch/adapters.ts`（平台适配）、
 > `src/dispatch/webhook.ts`（签名与重试）、`src/dispatch/index.ts`（渠道分发）。
 > 本文所有样例都由本地假数据实跑生成，域名一律用 `.invalid` 占位，**不含任何真实凭据或 URL**。
@@ -158,7 +158,8 @@
 
 > 三类摘要共用**完全相同**的 `digest` 结构，只有 `event` 不同；
 > `strict` 模式下 `date_only` / `backlog` 不会产生，事件集合只剩前 7 + 3 + `system` / `test`。
-> 平台适配器 `eventLabel` 覆盖了全部 14 种事件（v1.24 补齐 `task.project_review` → 「项目回顾」）。
+> 平台文本抬头由共享函数 `reminderHeading`（`src/dispatch/message.ts`）统一生成（v1.30 起），
+> 覆盖全部事件类型，并明确「来源类别 + 时间类别」。
 
 ---
 
@@ -276,7 +277,8 @@
 
 平台 body 由 `renderPlatformText()` 把同一份 `NotifyMessage` 渲染成中文纯文本。文本规则：
 
-- 首行固定 `【事件中文标签】`；**不输出任何链接**（v1.22 起，Cloud 没有可打开的 Web 任务页）。
+- 首行固定 `【来源 · 时间类别】` 抬头（由 `reminderHeading` 生成，如 `【任务提醒 · 截止时间】`）；
+  **不输出任何链接**（v1.22 起，Cloud 没有可打开的 Web 任务页）。
 - 抬头明确来源与时间类别：`【任务提醒 · 截止时间】` / `【任务提醒 · 开始时间】` /
   `【任务提醒 · 回顾时间】` / `【项目提醒 · 回顾时间】` / `【其他提醒 · …】`。
 - 任务级：依次输出任务标题、**触发本次的那种时间**（只打一种，避免同时有截止时间与开始时间时分不清）、

@@ -1,6 +1,6 @@
 # Notify 提醒规则手册
 
-> 对应 `spec.md` **v1.25**。权威规则在 `spec.md` §15（BASE-01…29）与 §16（EXT 扩展），
+> 对应 `spec.md` **v1.30**。权威规则在 `spec.md` §15（BASE-01…29）与 §16（EXT 扩展），
 > 本文把「什么情况下会提醒」整理成一份可读版本，方便日常查、不用读规则源码。
 > 每条都标了对应的 BASE / EXT 编号，需要原始定义时按编号回查 `spec.md`。
 
@@ -114,7 +114,7 @@
 
 - **时区**：容器里要保证 `TZ` 与 `NOTIFY_TIMEZONE` 一致（都默认 `Asia/Shanghai`）。
   `TZ` 决定「不带时区的日期字符串」怎么解析，`NOTIFY_TIMEZONE` 决定时刻怎么渲染；
-  只配前者或只配后者都会导致**差 8 小时**且不报错。详见 `docs/configuration.md` §4.2.1。
+  只配前者或只配后者都会导致**差 8 小时**且不报错。详见 `configuration.md` §4.2.1。
 - **改时间**（BASE-24）：改了任务时间会自动重排；去掉时间就停止安排；新设的时间如果提前点已过，**不补发**。
 - **显示格式**（EXT-21）：消息里的时间默认按 `yyyy-MM-dd HH:mm:ss` 渲染（业务时区），
   可用 `NOTIFY_TIME_FORMAT` 改；仅日期字段保持 `2026-11-16` 原样，结构化 JSON 仍是 ISO 8601。
@@ -157,10 +157,10 @@
 | 单个任务不发 | 策略是 `skip`，或状态是 `done`/`archived` | 看任务 `reminderPolicy` 与状态 |
 | 只有回顾在发 | 策略设成了 `start`/`due`，或 `skip`（回顾不受影响） | 同上 |
 | 摘要没发 | 对应 `NOTIFY_DIGEST_*` 关了，或 `strict` 模式 | 看配置与启动日志的级别 |
-| 项目回顾没发 | 项目**没有 `reviewAt` 字段**、只写了日期、或项目已归档 | 看 `GET /v1/projects` 返回里有没有 `reviewAt`；`include_review` 是否关掉；测试库可 `npm run seed:test` 造带该字段的项目 |
+| 项目回顾没发 | 项目**没有 `reviewAt` 字段**、只写了日期、或项目已归档 | 看 `GET /v1/projects` 返回里有没有 `reviewAt`；`NOTIFY_INCLUDE_REVIEW` 是否关掉；测试库可 `npm run seed:test` 造带该字段的项目 |
 | 收集箱任务以为不提醒 | 实际上**会提醒**（`inbox` 属活跃状态） | 见 §1 提示 |
 | 重复提醒只发了 1 次 | 没设 `repeatReminderMinutes`，或策略是 `start`/`due` | 单一策略下官方也不排重复 |
-| 邮件全失败 | VPS 出站 25/465/587 被拒 | 改用 `SMTP_PORT=2587`，详见 `docs/configuration.md` §4.6 |
+| 邮件全失败 | VPS 出站 25/465/587 被拒 | 改用 `SMTP_PORT=2587`，详见 `configuration.md` §4.6 |
 
 只读自查命令：
 
@@ -187,13 +187,13 @@ node src/cli.ts --dry-run --strict --log-level=debug   # 带完整判定链路
 
 | 想查什么 | 去哪里 |
 |---|---|
-| 规则原始定义（29 条 BASE + 20 条 EXT） | `spec.md` §15 / §16 |
+| 规则原始定义（29 条 BASE + 21 条 EXT） | `spec.md` §15 / §16 |
 | 任务级触发点实现 | `src/rules/reminder-plan.ts` |
 | 项目回顾触发点实现 | `src/rules/plan.ts` 的 `fromProjectReviews` |
 | 摘要 / `date_only` / `backlog` / 静默时段实现 | `src/rules/plan.ts` |
 | 窗口、去重、投递、告警 | `src/scheduler.ts` |
 | 提醒策略判定 | `src/rules/reminder-plan.ts` |
-| 配置开关与默认值 | `docs/configuration.md` §4.2 / §4.3 / §4.4 |
+| 配置开关与默认值 | `configuration.md` §4.2 / §4.3 / §4.4 |
 | 消息长什么样（各渠道字段） | `docs/webhook-payload.md` |
 | 部署与排障 | `docs/deployment.md` |
 | 管理页查看「下一批待触发」 | `docs/admin-guide.md` |
