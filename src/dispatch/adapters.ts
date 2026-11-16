@@ -15,7 +15,7 @@ import { createHmac } from 'node:crypto';
 import type { WebhookAdapter } from '../config.ts';
 import { formatStamp, type TimeFormatOptions } from '../format.ts';
 import { DEFAULT_TIME_FORMAT } from '../rules/time.ts';
-import type { NotifyMessage } from './message.ts';
+import { reminderHeading, type NotifyMessage } from './message.ts';
 import { postWebhook, type DeliveryResult, type WebhookPostOptions } from './webhook.ts';
 
 export interface PlatformRequest {
@@ -38,41 +38,28 @@ export function feishuSign(secret: string, timestampSec: number): string {
     .digest('base64');
 }
 
-/** 事件类型 → 中文短标签，机器人消息里一眼能看出是什么提醒。 */
-function eventLabel(event: string): string {
-  const labels: Record<string, string> = {
-    'task.due': '截止提醒',
-    'task.due_advance': '即将截止',
-    'task.due_repeat': '截止催办',
-    'task.start': '开始提醒',
-    'task.start_advance': '即将开始',
-    'task.review': '回顾提醒',
-    'task.project_review': '项目回顾',
-    digest_morning: '晨间简报',
-    digest_evening: '晚间回顾',
-    digest_weekly: '每周回顾',
-    date_only: '今日到期',
-    backlog: '积压逾期',
-    system: '系统通知',
-    test: '渠道测试',
-  };
-  return labels[event] ?? event;
-}
-
 /**
  * 把结构化消息渲染成机器人可读的纯文本，内容同样遵守 EXT-03 数据最小化。
+ * 抬头用共享的 reminderHeading，明确「任务 / 项目 / 其他提醒」与「开始 / 截止 / 回顾时间」。
  * @param time 显示格式与时区（EXT-21）；不传时用默认格式 + Asia/Shanghai，便于单测直接调用
  */
 export function renderPlatformText(
   message: NotifyMessage,
   time: TimeFormatOptions = { pattern: DEFAULT_TIME_FORMAT, timeZone: 'Asia/Shanghai' },
 ): string {
-  const lines: string[] = [`【${eventLabel(message.event)}】`];
+  const lines: string[] = [`【${reminderHeading(message.event)}】`];
 
   if (message.task) {
     lines.push(`任务：${message.task.title}`);
-    if (message.task.dueDate) lines.push(`截止：${formatStamp(message.task.dueDate, time)}`);
-    if (message.task.startTime) lines.push(`开始：${formatStamp(message.task.startTime, time)}`);
+    // 只展示触发本次提醒的那一种时间，避免同时有 dueDate/startTime 时造成歧义。
+    const kind = message.trigger?.type ?? '';
+    if (kind.startsWith('due') && message.task.dueDate) {
+      lines.push(`截止时间：${formatStamp(message.task.dueDate, time)}`);
+    } else if (kind.startsWith('start') && message.task.startTime) {
+      lines.push(`开始时间：${formatStamp(message.task.startTime, time)}`);
+    } else if (kind === 'review' && message.task.reviewAt) {
+      lines.push(`回顾时间：${formatStamp(message.task.reviewAt, time)}`);
+    }
     if (message.task.projectName) lines.push(`项目：${message.task.projectName}`);
     if (message.task.description) lines.push(`描述：${message.task.description}`);
   }

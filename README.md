@@ -63,7 +63,7 @@ Notify 补上这一环：定时轮询 Cloud API，按官方源码里的同一套
 
 ```bash
 cp .env.example .env      # 填入 MINDWTR_TOKEN（完整 bearer token，非 capture-only）
-npm test                  # 85 个单元测试（含官方黄金比对夹具、M4、12 个日志级别与 11 个业务响应用例）
+npm test                  # 87 个单元测试（含官方黄金比对夹具、M4、12 个日志级别与 11 个业务响应用例）
 npm run dry-run           # 只读跑一轮 strict 计划，不投递、不写库
 node src/cli.ts --dry-run --strict --log-level=debug  # 打印完整诊断链路（不用改 .env）
 npm run once              # 跑一轮并真实投递（渠道未启用则只记录）
@@ -162,7 +162,7 @@ src/
   scheduler.ts       轮询、5 分钟补发、失败告警与恢复
   healthz.ts         GET /healthz + /admin 路由委托、共享恒定时间鉴权
   cli.ts             全部命令行入口
-tests/               9 个测试文件，共 85 个用例
+tests/               9 个测试文件，共 87 个用例
   reminder-plan.test.ts   M1 规则引擎（BASE-21/22/12/25/23/16/17/18/19/28 + 易错回归）
   m2-rules.test.ts        M2 三类摘要 / A 类扩展 / 时区
   m2-delivery.test.ts     M2 渠道：SMTP、Webhook 签名与重试、状态库去重
@@ -173,7 +173,7 @@ tests/               9 个测试文件，共 85 个用例
   m4.test.ts             M4 命名空间隔离、只读管理页、鉴权重发、审计、strict 一致性
   logging.test.ts        v1.13：日志级别过滤 / 格式 / 脱敏 / 配置覆盖 / 调度与 Cloud 集成
   webhook-response.test.ts v1.15：业务码校验 / 假成功拦截 / 兼容与脱敏 / wecom 适配器链路
-  format.test.ts         v1.25：时间格式（时区换算 / token 组合 / 仅日期原样 / JSON 仍 ISO）
+  format.test.ts         v1.25：时间格式 + v1.30：提醒抬头（来源/时间类别、只显示触发那种时间）
   e2e-channels.mjs       目标B真实渠道联调（本地 mock Cloud + 真实 SMTP + 独立验签接收端；不进 npm test）
 ```
 

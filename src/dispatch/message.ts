@@ -104,21 +104,63 @@ export function renderMessage(
   return message;
 }
 
+/**
+ * 提醒抬头：明确告诉接收方「什么来源的提醒 + 针对哪种时间」。
+ *
+ * 两段标签，用中点连接，例如：
+ *   - `任务提醒 · 截止时间`（event = task.due / task.due_advance / task.due_repeat）
+ *   - `任务提醒 · 开始时间`（task.start / task.start_advance）
+ *   - `任务提醒 · 回顾时间`（task.review）
+ *   - `项目提醒 · 回顾时间`（task.project_review）
+ *   - `其他提醒 · 晨间简报`（摘要 / 积压 / 系统 / 测试等，无单一时刻）
+ *
+ * 为什么按 event 而不是按消息里「存在哪些时间字段」判断：一条任务可能同时带
+ * dueDate 与 startTime，若按字段猜会同时打出两种时间、看不出到底哪个触发了提醒。
+ * 触发点本身（plan.kind → event）才是唯一可信来源。
+ *
+ * @param event PlannedNotification.event 或 NotifyMessage.event
+ * @returns 形如「任务提醒 · 截止时间」的抬头文本（不含书名号，调用方自行加）
+ */
+export function reminderHeading(event: string): string {
+  // 项目回顾虽以 task. 开头，但来源是项目，单独判定。
+  if (event === 'task.project_review') return '项目提醒 · 回顾时间';
+
+  // 任务级：事件名形如 task.due / task.start_advance，取中间的时间类型词。
+  if (event.startsWith('task.')) {
+    const source = '任务提醒';
+    if (event.includes('due')) return `${source} · 截止时间`;
+    if (event.includes('start')) return `${source} · 开始时间`;
+    if (event.includes('review')) return `${source} · 回顾时间`;
+    return source;
+  }
+
+  // 其余（摘要 / 积压 / 系统 / 测试 / 仅日期）：无单一触发时刻，归为其他提醒，
+  // 并保留原有事件短标签，让人知道具体是哪一种。
+  const detail: Record<string, string> = {
+    digest_morning: '晨间简报',
+    digest_evening: '晚间回顾',
+    digest_weekly: '每周回顾',
+    date_only: '今日到期',
+    backlog: '积压逾期',
+    system: '系统通知',
+    test: '渠道测试',
+  };
+  const tail = detail[event] ?? event;
+  return `${'其他提醒'}${tail ? ` · ${tail}` : ''}`;
+}
+
 /** 事件类型 → 中文标题，用于邮件主题。 */
 function subjectFor(plan: PlannedNotification, message: NotifyMessage): string {
-  if (plan.kind === 'backlog') return `[Notify] 积压逾期清单（${plan.backlog?.count ?? 0} 条）`;
-  if (plan.kind === 'digest-morning') return `[Notify] 晨间简报（今日到期 ${message.digest?.dueToday.length ?? 0} / 逾期 ${message.digest?.overdue.length ?? 0}）`;
-  if (plan.kind === 'digest-evening') return '[Notify] 晚间回顾';
-  if (plan.kind === 'digest-weekly') return '[Notify] 每周回顾';
-  if (plan.kind === 'date-only') return `[Notify] 今日到期（${message.digest?.dueToday.length ?? 0} 条，仅日期任务）`;
+  // 抬头统一带来源与时间类别，摘要类再补上各自的统计信息。
+  const heading = reminderHeading(plan.event);
+  if (plan.kind === 'backlog') return `[Notify] ${heading}（${plan.backlog?.count ?? 0} 条）`;
+  if (plan.kind === 'digest-morning') return `[Notify] ${heading}（今日到期 ${message.digest?.dueToday.length ?? 0} / 逾期 ${message.digest?.overdue.length ?? 0}）`;
+  if (plan.kind === 'digest-evening') return `[Notify] ${heading}`;
+  if (plan.kind === 'digest-weekly') return `[Notify] ${heading}`;
+  if (plan.kind === 'date-only') return `[Notify] ${heading}（${message.digest?.dueToday.length ?? 0} 条，仅日期任务）`;
 
-  const labels: Record<string, string> = {
-    start: '开始提醒', 'start-advance': '即将开始',
-    due: '截止提醒', 'due-advance': '即将截止', 'due-repeat': '截止催办',
-    review: '回顾提醒', 'project-review': '项目回顾',
-  };
   const subjectName = message.task?.title ?? message.project?.title ?? '';
-  return `[Notify] ${labels[plan.kind] ?? '提醒'}：${subjectName}`;
+  return `[Notify] ${heading}：${subjectName}`;
 }
 
 /** 把任务摘要列表渲染成纯文本行，汇总类通知共用。 */
@@ -147,13 +189,19 @@ export function renderEmail(
 ): EmailContent {
   const subject = subjectFor(plan, message);
   const time: TimeFormatOptions = { pattern: config.timeFormat, timeZone: config.timezone };
-  const parts: string[] = [];
+  const parts: string[] = [`【${reminderHeading(plan.event)}】`];
 
   if (message.task) {
     parts.push(`任务：${message.task.title}`);
     parts.push(`状态：${message.task.status}`);
-    if (message.task.dueDate) parts.push(`截止：${formatStamp(message.task.dueDate, time)}`);
-    if (message.task.startTime) parts.push(`开始：${formatStamp(message.task.startTime, time)}`);
+    // 只展示本次触发对应的那一种时间，避免任务同时有 dueDate/startTime 时分不清哪个在提醒。
+    if (plan.kind.startsWith('due') && message.task.dueDate) {
+      parts.push(`截止时间：${formatStamp(message.task.dueDate, time)}`);
+    } else if (plan.kind.startsWith('start') && message.task.startTime) {
+      parts.push(`开始时间：${formatStamp(message.task.startTime, time)}`);
+    } else if (plan.kind === 'review' && message.task.reviewAt) {
+      parts.push(`回顾时间：${formatStamp(message.task.reviewAt, time)}`);
+    }
     if (message.task.projectName) parts.push(`项目：${message.task.projectName}`);
     if (message.task.description) parts.push(`\n描述：${message.task.description}`);
   }
