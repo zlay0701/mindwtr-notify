@@ -135,13 +135,6 @@ export interface NotifyConfig {
 
   /** M3 扩展配置。全部属于【官方无】，能力开关默认关闭。 */
   m3: {
-    /** 标签路由：只影响「投递到哪些渠道」，不改变任何 BASE 触发点。 */
-    tagRules: {
-      enabled: boolean;
-      silentTags: string[];
-      emailTags: string[];
-      webhookTags: string[];
-    };
     /** 平台适配器：与 WEBHOOK_URLS 一一对应，缺省为 generic。 */
     adapters: {
       kinds: WebhookAdapter[];
@@ -336,12 +329,6 @@ export function loadConfig(options: {
     },
 
     m3: {
-      tagRules: {
-        enabled: bool(env.NOTIFY_TAG_RULES, false),
-        silentTags: list(env.NOTIFY_TAG_SILENT).length ? list(env.NOTIFY_TAG_SILENT) : ['silent'],
-        emailTags: list(env.NOTIFY_TAG_EMAIL).length ? list(env.NOTIFY_TAG_EMAIL) : ['notify-email'],
-        webhookTags: list(env.NOTIFY_TAG_WEBHOOK).length ? list(env.NOTIFY_TAG_WEBHOOK) : ['notify-webhook'],
-      },
       adapters: {
         kinds: list(env.NOTIFY_WEBHOOK_ADAPTERS).map(value => {
           const normalized = value.toLowerCase();

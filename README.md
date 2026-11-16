@@ -107,7 +107,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
   可选 `warn` / `error` / `silent`。命令输出（dry-run 计划、投递结果）不受级别影响；详见 **[配置参考 §9](docs/configuration.md)**。
   Webhook 实际发出的字段与四种 body 形态见 **[输出数据格式清单](docs/webhook-payload.md)**。
 - `NOTIFY_ADMIN_TOKEN` / `NOTIFY_ADMIN_RETRY` —— 管理页鉴权与手动重发总开关；重发默认关闭且强制鉴权。
-- `NOTIFY_TAG_RULES` / `NOTIFY_WEBHOOK_ADAPTERS` 等扩展**默认全部关闭**。
+- `NOTIFY_WEBHOOK_ADAPTERS` 等扩展默认走内置值；平台适配器缺省为 `generic`。
 - `strict_mode: true` 会强制关掉全部「新增触发点」类扩展，用于一致性验收。
 - A 类扩展（仅日期 09:00 提醒、backlog 汇总、静默时段）代码在，但默认不开。
 
@@ -149,7 +149,6 @@ src/
     reminder-plan.ts 【一致】BASE 规则引擎（纯函数，逐条标注编号）
     time.ts          Intl 时区换算
     plan.ts          统一计划：任务级 + 三类摘要 + A 类扩展
-    tag-policy.ts    【官方无】标签路由（M3）
   state/
     namespace.ts     M4 命名空间规范化、去重键前缀、状态库路径派生
     store.ts         SQLite WAL、sent_log、渠道级去重、命名空间隔离、审计与重试
@@ -163,11 +162,11 @@ src/
   scheduler.ts       轮询、5 分钟补发、失败告警与恢复
   healthz.ts         GET /healthz + /admin 路由委托、共享恒定时间鉴权
   cli.ts             全部命令行入口
-tests/               9 个测试文件，共 89 个用例
+tests/               9 个测试文件，共 85 个用例
   reminder-plan.test.ts   M1 规则引擎（BASE-21/22/12/25/23/16/17/18/19/28 + 易错回归）
   m2-rules.test.ts        M2 三类摘要 / A 类扩展 / 时区
   m2-delivery.test.ts     M2 渠道：SMTP、Webhook 签名与重试、状态库去重
-  m3.test.ts             M3 标签路由、平台适配器
+  m3.test.ts             M3 平台适配器（钉钉/企微/飞书签名与投递）
   official-golden.test.ts 目标 A：官方 schedule-utils.ts 黄金基准比对（strict 差集为空）
   official-schedule.ts   官方 schedule-utils.ts 逐字移植基准（date / due-reminder-lead /
                           task-status / task-reminder-policy 依赖），供 golden 夹具使用

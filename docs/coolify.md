@@ -152,7 +152,7 @@ NOTIFY_ADMIN_RETRY=false
   不要写 `# 留空即可` 之类的行尾注释，注释必须独占一行。
 - `HEALTHZ_TOKEN` 建议设：compose 的 healthcheck 会自动带上它，
   所以开启鉴权不会让容器变 `unhealthy`（v1.10 已端到端验证）。
-- 其它配置（摘要开关、A 类扩展、标签路由、可靠性参数）不用现在填，
+- 其它配置（摘要开关、A 类扩展、可靠性参数）不用现在填，
   `compose.coolify.yaml` 已经列好引用，之后想调直接在面板里加值即可。
 
 **凭据不要勾 Build Variable**：Coolify 对 Git Compose 应用可能把构建期变量作为 `--build-arg`

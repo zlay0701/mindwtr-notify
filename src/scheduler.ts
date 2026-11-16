@@ -20,7 +20,6 @@ import { channelDedupeKey, recordDelivery, type Dispatcher } from './dispatch/in
 import type { EmailContent, NotifyMessage } from './dispatch/message.ts';
 import { renderEmail, renderMessage } from './dispatch/message.ts';
 import { buildPlan, type PlannedNotification } from './rules/plan.ts';
-import { filterChannelsByTags } from './rules/tag-policy.ts';
 import type { StateStore } from './state/store.ts';
 import type { MindwtrProject } from './types.ts';
 
@@ -240,8 +239,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const email = renderEmail(item, message, config);
       let deliveredAny = false;
 
-      // M3 标签路由：只过滤「发到哪些渠道」，不增删触发点、不改时刻。
-      const channels = filterChannelsByTags(item.task, dispatcher.channels, config);
+      // 默认所有已配置渠道一起发送，不做标签过滤。
+      const channels = dispatcher.channels;
       emit('debug', '触发点到点', {
         kind: item.kind, taskId: item.taskId ?? '-', channels: channels.length,
       });

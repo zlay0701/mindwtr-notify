@@ -217,18 +217,15 @@ capture-only token 只能调 `POST /v1/capture`，在 `/v1/tasks`、`/v1/project
 
 > `NOTIFY_FAILURE_ALERT_AFTER=3` 是 Cloud 拉取连续失败 3 轮发系统告警，与 Webhook 投递重试无关。
 
-### 4.8 M3 扩展（全部默认关闭）
+### 4.8 M3 平台适配器
 
 | 键                         | 默认值              | 说明                                                                | 标记             |
 | ------------------------- | ---------------- | ----------------------------------------------------------------- | -------------- |
-| `NOTIFY_TAG_RULES`        | `false`          | 开启后标签路由生效                                                         | EXT-19 前半【官方无】 |
-| `NOTIFY_TAG_SILENT`       | `silent`         | 命中则所有渠道都不投递（逗号分隔）                                                 | EXT-19         |
-| `NOTIFY_TAG_EMAIL`        | `notify-email`   | 命中则只发邮件                                                           | EXT-19         |
-| `NOTIFY_TAG_WEBHOOK`      | `notify-webhook` | 命中则只发 Webhook                                                     | EXT-19         |
-| `NOTIFY_WEBHOOK_ADAPTERS` | 空                | 与 `WEBHOOK_URLS` 一一对应：`generic` / `dingtalk` / `wecom` / `feishu` | EXT-19         |
+| `NOTIFY_WEBHOOK_ADAPTERS` | 空                | 与 `WEBHOOK_URLS` 一一对应：`generic` / `dingtalk` / `wecom` / `feishu` | EXT-19【官方无】 |
 | `NOTIFY_WEBHOOK_SECRETS`  | 空                | 平台适配器各自的加签密钥，用逗号分隔，可留空位                                           | EXT-19         |
 
-> 产品代码不含任何写端点调用：发送提醒后不会回头改动任务状态，Notify 不管理任务生命周期。
+> 所有已配置渠道**默认一起发送**，不做标签过滤。产品代码不含任何写端点调用：
+> 发送提醒后不会回头改动任务状态，Notify 不管理任务生命周期。
 
 ### 4.9 M4 管理页与命名空间
 

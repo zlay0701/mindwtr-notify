@@ -1,12 +1,12 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-16 15:20（v1.27：移除双向完成写能力，回归纯只读）· 对应 `spec.md` **v1.27**
+> 生成时间：2026-11-13 · 最后整理：2026-11-16 15:45（v1.28：移除 M3 标签路由，所有渠道默认一起发送）· 对应 `spec.md` **v1.28**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
 > ⚠️ **当前环境（2026-11-15 核实）**：`.env` 的 `MINDWTR_BASE_URL` 指向**测试服务器**
 > `https://mindwtr-cloud.zlay.cc.cd`（生产是 `...zlay.dpdns.org`）。**两个实例都正常**，
-> 测试服务器 `/health` 经系统代理返回 200 `{"ok":true}`；`npm test` 恒 **89/89**（v1.27 起，移除双向完成后由 92 降为 89）；
+> 测试服务器 `/health` 经系统代理返回 200 `{"ok":true}`；`npm test` 恒 **85/85**（v1.28 起，移除标签路由后由 89 降为 85）；
 > 用 §7 的代理前缀跑 `dry-run`，2026-11-16 实测 **约 16–17 条任务 / 1 个项目、计划 6 条、到点 0 条、过期跳过 6 条**
 > （任务总数随造数变化、触发点基线未变；测试库会被客户端同步改写、到点数随造数时间衰减；
 > 生产实例基线是 595 条 / 15 个项目 / 计划 0 条）。
@@ -50,7 +50,7 @@
 
 本次目标：<替换为 §1 目标表 / §5 清单里的一项>。
 
-开工前先跑 npm test 与 npm run dry-run 确认基线（npm test 应为 89/89；dry-run 取决于 .env 指向的实例：
+开工前先跑 npm test 与 npm run dry-run 确认基线（npm test 应为 85/85；dry-run 取决于 .env 指向的实例：
 测试服务器约 16 条任务 / 1 个项目 / 计划 6 条（测试库会被同步改写，以实测为准），到点数随造数时间衰减；生产实例 595 条任务 / 15 个项目 / 计划 0 条；
 全程只读）。数字对不上先读 HANDOFF §3 / §7 判断是不是数据或时间变化，别急着改代码。
 完成后按 HANDOFF.md §9 回写 spec.md、工作日志与本文件的进度/未完成清单。
@@ -93,11 +93,11 @@
 | **M0** 实测探针 | ✅ 完成 | `docs/probe-result.md` 为权威实测结论 |
 | **M1** 一致核心 | ✅ 已实现（含官方比对夹具，验收通过） | 无遗留；比对中纠正 2 处与官方不一致（review 单一策略、due-repeat 单一策略） |
 | **M2** 摘要与渠道 | ✅ 已实现 | **真实渠道端到端联调（目标 B）+ VPS compose 部署联调（目标 D）2026-11-15 均已通过** |
-| **M3** 可选增强 | ✅ 已实现 | 标签路由 + 钉钉/企微/飞书适配器（v1.27 移除双向完成写闸门，回归纯只读） |
+| **M3** 可选增强 | ✅ 已实现 | 钉钉/企微/飞书适配器；所有渠道默认一起发（v1.27 移除双向完成写闸门、v1.28 移除标签路由，回归纯只读） |
 | **M4** 管理页 | ✅ 已实现（验收通过） | 只读管理页 + 三层命名空间隔离 + 受鉴权重发 + 审计；`spec.md` §14 全部勾选 |
 
-**基线数字**：`npm test` **89/89 通过**（含官方黄金比对夹具、M4、日志、Webhook 业务响应、项目回顾与时间格式用例），纯本地、不随所连实例变化。
-（v1.27 移除双向完成的 3 个用例，测试数由 92 降为 89；dry-run 约 16–17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条。）
+**基线数字**：`npm test` **85/85 通过**（含官方黄金比对夹具、M4、日志、Webhook 业务响应、项目回顾与时间格式用例），纯本地、不随所连实例变化。
+（v1.27 移除双向完成 3 个用例：92→89；v1.28 移除标签路由 4 个用例：89→85；dry-run 约 16–17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条。）
 `npm run dry-run`（全程只读、未投递未写库）：
 - **生产实例**：595 条任务 / 15 个项目、strict 计划 0 条（数据全无时间字段）。
 - **当前测试实例**：2026-11-16 14:25 实测 **16 条任务 / 1 个项目、计划 6 条、到点 0 条、过期跳过 6 条**
@@ -245,7 +245,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 
 **v1.25 可配置时间格式（2026-11-16 13:10）**：新增 `NOTIFY_TIME_FORMAT`（默认 `yyyy-MM-dd HH:mm:ss`），
 邮件与平台文本里的时间改成本地时间显示（`2026-11-16 23:00:00`），结构化 JSON 仍是 ISO。
-`npm test` 当时 **92/92**（v1.27 起为 89/89）。详见 §4 第 27 条与 `spec.md` §12.16。
+`npm test` 当时 **92/92**（v1.28 起为 85/85）。详见 §4 第 27 条与 `spec.md` §12.16。
 
 **v1.26 内网直连实测（2026-11-16 14:40）**：**产品代码零改动**，只补测此前挂 `- [ ]` 的内网直连验证。
 当前 cloud 容器 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0` / 网络 `szj4zxoghn8jrdm0hghsqhu0`
@@ -257,6 +257,12 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 `src/config.ts` 的 `m3.actions` 段、`tests/m3.test.ts` 的 3 个用例、`NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`
 两个配置项（`.env.example` / `compose.coolify.yaml` / 全部文档），M3 缩减为标签 + 适配器。
 产品代码**不含任何写端点调用**，Notify 不管理任务生命周期。`npm test` 由 92 → **89/89**。详见 §4 第 29 条。
+
+**v1.28 移除 M3 标签路由（2026-11-16 15:45）**：用户明确要求"去掉 M3 标签路由的相关代码/文档/配置，
+默认所有渠道一起发送即可"。删除 `src/rules/tag-policy.ts`、`src/config.ts` 的 `m3.tagRules` 段、
+`tests/m3.test.ts` 的 4 个标签用例、4 个 `NOTIFY_TAG_*` 配置项（含 compose.coolify.yaml 与全部文档）；
+`scheduler.ts` 去掉 `filterChannelsByTags` 调用，直接把 `dispatcher.channels`（全部渠道）交给分发器。
+`#silent` 等标签从此只是普通文本、无过滤效果；渠道间仍各自独立去重与重试。`npm test` 由 89 → **85/85**。详见 §4 第 30 条。
 
 ---
 
@@ -505,7 +511,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 
 25. **v1.23 提醒规则手册（2026-11-16）**：纯文档，产品代码零改动。
     - 新增 `docs/rules.md`：五道判定关 / 全部触发类型 / 策略语义 / 时间与重复上限 /
-      补发窗口与去重 / 标签路由 / 「为什么没提醒」排查表 / 已知边界 / 索引。
+      补发窗口与去重 / 「为什么没提醒」排查表 / 已知边界 / 索引。
     - 如实记录两处边界：① `project-review`（BASE-07）类型与策略已支持，但 `plan.ts` 没有生成代码，
       **从不触发**，与 §15「已实现」不一致；② 摘要时刻 09:00 / 20:00 / 周日 18:00 写死在 `config.ts`，
       环境变量只能开关。
@@ -529,7 +535,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
       钉钉/企微/飞书文本；`generic` 的 JSON **仍是 ISO 8601**，避免接收端重新踩时区坑。
     - 仅日期字段不补时刻（`2026-11-16` 保持原样）；解析不了的字符串原样输出。
     - 实测：`2026-11-16T15:00:00Z` → `截止：2026-11-16 23:00:00`；`yyyy/MM/dd HH:mm` → `2026/11/16 23:00`。
-    - `tests/format.test.ts` 新增 4 个用例，当时 `npm test` **92/92**（v1.27 起 89/89）；文档见 `docs/configuration.md` §4.2.2。
+    - `tests/format.test.ts` 新增 4 个用例，当时 `npm test` **92/92**（v1.28 起 85/85）；文档见 `docs/configuration.md` §4.2.2。
 
 28. **v1.26 内网直连实测（2026-11-16，产品代码零改动）**：
     - VPS 当前 cloud 容器 `mindwtr-cloud-szj4zxoghn8jrdm0hghsqhu0`、bridge 网络
@@ -545,8 +551,22 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
       `.env.example` / `compose.coolify.yaml` 的 `NOTIFY_ALLOW_WRITE` / `NOTIFY_COMPLETE_ACTION`。
     - 文档同步：README、docs（cloud-api / configuration / coolify / deployment / admin-guide）、spec（头 / §0.2 /
       §10 / §12.17 / §13 / §16）、HANDOFF 各处的相关表述全部清理；`docs/cloud-api.md` 把 `/complete` 标为**不实现**。
-    - **产品代码现不含任何写端点调用或写开关**；M3 仅剩标签路由 + 平台适配器；Notify 不管理任务生命周期。
-    - `npm test` **89/89**（原 92，去掉 3 个 complete 用例）；dry-run 只读基线不变。
+    - **产品代码现不含任何写端点调用或写开关**；当时 M3 剩标签路由 + 平台适配器；Notify 不管理任务生命周期。
+    - `npm test` **89/89**（原 92，去掉 3 个 complete 用例；v1.28 起 85/85）；dry-run 只读基线不变。
+
+30. **v1.28 移除 M3 标签路由，所有渠道默认一起发送（2026-11-16）**：
+    - 用户明确要求："去掉 M3 的标签路由的相关代码、文档、配置，默认所有渠道一起发送即可"。
+    - 删除：`src/rules/tag-policy.ts`（`parseTaskTags` / `getTagPolicy` / `filterChannelsByTags` 全删）、
+      `src/config.ts` 的 `m3.tagRules` 类型与加载段、`tests/m3.test.ts` 的 4 个标签用例、
+      `.env.example` 与 `compose.coolify.yaml` 的 `NOTIFY_TAG_RULES` / `NOTIFY_TAG_SILENT` /
+      `NOTIFY_TAG_EMAIL` / `NOTIFY_TAG_WEBHOOK`。
+    - **关键调用点**：`src/scheduler.ts` 原来用 `filterChannelsByTags(item.task, dispatcher.channels, config)`
+      过滤渠道，现改为直接用 `const channels = dispatcher.channels`——即邮件 + 每个 Webhook 默认全发。
+    - 渠道间仍彼此独立：`channelDedupeKey` / `recordDelivery` 逐个渠道去重，某渠道失败只重投该渠道。
+    - `#silent` / `#notify-email` / `#notify-webhook` 等标签从此只是普通文本，**无任何过滤效果**。
+    - 文档同步：README、docs（configuration / rules / webhook-payload / coolify）、spec、HANDOFF 全部清理；
+      `docs/rules.md` 第 6 节由「标签路由」改为「渠道投递（默认全部一起发送）」。
+    - `npm test` **85/85**（原 89，去掉 4 个标签用例）；dry-run 只读基线不变。
 
 ---
 
@@ -563,7 +583,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 > **已完成**：目标 A 黄金比对夹具（v1.3）、目标 C / M4（v1.4）、带时间任务端到端验证（v1.5）、交付物整理（v1.6）、
 > **B 真实渠道端到端联调（v1.7）**、**D VPS 部署联调（v1.8）**、**E 生产化补齐（v1.9）**、远程 Linux 构建链路打通（均为 2026-11-15）。
 > 表格 5 项**全部完成**：第 4 项（`complete` 端点实测）已于 v1.27 连同该能力移除而了结，第 5 项（内网直连）v1.26 收尾，详见 §4 第 28/29 条。
-> `npm test` 恒 **89/89**（v1.27 起）；最新 `dry-run` 为 **约 16–17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条**（2026-11-16 实测，测试库会被同步改写）。
+> `npm test` 恒 **85/85**（v1.28 起）；最新 `dry-run` 为 **约 16–17 条任务 / 1 项目 / 计划 6 条 / 到点 0 条 / 过期跳过 6 条**（2026-11-16 实测，测试库会被同步改写）。
 > 本机若见 0 条 / `fetch failed` 先查代理，别误判服务端，见头部与 §4 第 13 条。
 > 签名、重试、去重、补发、strict 隔离与命名空间隔离逻辑均已用本地单测 + 测试实例端到端覆盖。
 
@@ -578,7 +598,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 | `README.md` | 项目速览、命令、目录结构、约束 |
 | `docs/cloud-api.md` | v1.12：Mindwtr Cloud API 调用清单（运行时 / 白名单允许但不用 / 探针与造数脚本 / 主动禁止，含参数、频率、认证与响应要点） |
 | `docs/coolify.md` | v1.16 起：Coolify 部署教程；v1.19 按「仓库已上线」修订前置条件并新增 §0 三步快速路径 |
-| `docs/rules.md` | v1.23：提醒规则手册（五道判定关、全部触发类型、策略语义、时间与窗口、标签路由、排查表、已知边界） |
+| `docs/rules.md` | v1.23：提醒规则手册（五道判定关、全部触发类型、策略语义、时间与窗口、渠道投递、排查表、已知边界）；v1.28 第 6 节标签路由改为渠道投递 |
 | `compose.coolify.yaml` | v1.16：Coolify 专用编排（`${VAR}` 注入、无 env_file/container_name/ports，产品代码不含写端点）；v1.20 加 `TZ: ${TZ:-Asia/Shanghai}` |
 | `docs/webhook-payload.md` | v1.14：**出站** Webhook 数据格式清单（通用 `generic` 完整字段表、14 种 event 与 JSON 样例、验签头、钉钉/企微/飞书 body、重试与幂等、隐私边界） |
 | `docs/deployment.md` | v1.11：Docker Compose 部署与运维指南（§1.1 附接口摘要，含环境变量两条通道、升级回滚备份、故障排查、安全边界） |
@@ -598,14 +618,13 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 | `src/rules/reminder-plan.ts` | **【一致】BASE 规则引擎纯函数**，`hasTimeComponent` / 提前量日历日算术 / `min(8, floor(120/interval))` / `reminderPolicy` 五态 / 归档项目过滤 |
 | `src/rules/time.ts` | Intl 时区换算（本地↔UTC 双次偏移） |
 | `src/rules/plan.ts` | 统一计划：BASE 任务级 + 三类摘要 + A 类扩展 + strict 隔离 |
-| `src/rules/tag-policy.ts` | 【官方无】标签路由（M3），只过滤渠道、不改写触发计划 |
 | `src/state/namespace.ts` | M4：命名空间规范化、去重键 `ns=<ns>:` 前缀、状态库路径派生 |
 | `src/state/store.ts` | SQLite WAL、`sent_log`、渠道级去重、`bun:sqlite` / `node:sqlite` 适配；M4 加 `namespace` 列（旧库无损迁移）、记录查询 / 计数 / 重试 / 审计接口 |
 | `src/admin.ts` | M4：只读管理页 HTML + 6 个 JSON 接口、恒定时间鉴权、脱敏、受双开关保护的 `POST /admin/api/retry` |
 | `src/dispatch/*` | 消息渲染与隐私裁剪、SMTP、HMAC 签名 Webhook+重试、钉钉/企微/飞书适配器、渠道级分发器 |
 | `src/scheduler.ts` | 轮询、5 分钟补发、失败告警与恢复；`upcoming()` 只读计划缓存供管理页展示 |
 | `src/healthz.ts` / `src/cli.ts` | 健康端点（不含任务内容与令牌）+ `/admin` 路由委托与共享鉴权 / 全部 CLI 入口 |
-| `tests/*.test.ts` | 9 个文件、92 个用例（M4 11 + v1.13 日志 12 + v1.15 业务响应 11 + v1.24 项目回顾 2 + v1.25 格式 4） |
+| `tests/*.test.ts` | 9 个文件、85 个用例（M4 11 + v1.13 日志 12 + v1.15 业务响应 11 + v1.24 项目回顾 2 + v1.25 格式 4；v1.27 去掉 complete 3 个、v1.28 去掉标签 4 个） |
 | `tests/e2e-channels.mjs` | 目标 B 真实渠道联调执行器：本地 mock Cloud + 真实 SMTP + 独立验签接收端 + 三轮独立进程；不进 `npm test` 用例集，详见 §4 第 13 条 |
 | `tests/logging.test.ts` | v1.13：级别过滤 / 格式 / 脱敏 / 配置覆盖 / 调度与 Cloud 集成，12 个用例 |
 | `tests/webhook-response.test.ts` | v1.15：业务码解析、200 + errcode 失败不重试、兼容与脱敏、wecom 适配器链路，11 个用例 |
@@ -628,7 +647,7 @@ Resend 备选端口 `2587`（STARTTLS）可正常认证发信 —— **把 `SMTP
 ## 7. 基线验收命令（每个新窗口开工先跑）
 
 ```bash
-npm test                # 期望 89/89 通过（含官方比对夹具 + M4 11 个 + 日志 12 个 + 业务响应 11 个 + 项目回顾 2 个 + 时间格式 4 个），纯本地、与实例无关
+npm test                # 期望 85/85 通过（含官方比对夹具 + M4 11 个 + 日志 12 个 + 业务响应 11 个 + 项目回顾 2 个 + 时间格式 4 个），纯本地、与实例无关
 npm run dry-run         # 测试实例：约 16–17 条任务 / 1 个项目 / 计划 6 条（以实测为准）；到点数随造数时间衰减
                         # 生产实例：595 条任务 / 15 个项目 / 计划 0 条。均应提示未投递未写库
 node src/cli.ts --dry-run --strict --log-level=debug  # 排障：打印完整诊断链路，不用改 .env

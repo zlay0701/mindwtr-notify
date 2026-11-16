@@ -19,14 +19,14 @@
 | 1 | 任务状态**活跃**：`inbox` / `next` / `waiting` / `someday` | `done` / `archived` / `reference` 一律不提醒 | BASE-28 |
 | 2 | 时间字段**带时刻**，形如 `2026-11-16T10:11` 或 `2026-11-16 10:11` | 只写日期（`2026-11-16`）→ 不产生任何任务级提醒 | BASE-21 / BASE-22 |
 | 3 | 提醒**策略允许**（不是 `skip`） | `skip` 撤销开始/截止类；但**回顾仍会发** | BASE-18 |
-| 4 | 对应**开关打开**（`NOTIFY_INCLUDE_START/DUE/REVIEW`），且未被 `#silent` 静默 | 关掉就直接不排；`#silent` 全渠道不发 | BASE-20 / EXT-19 |
+| 4 | 对应**开关打开**（`NOTIFY_INCLUDE_START/DUE/REVIEW`） | 关掉就直接不排该类型提醒 | BASE-20 |
 | 5 | 触发时刻**落在补发窗口内**：到点，或迟到 ≤ 5 分钟 | 更早的算「过期跳过」，不补发 | BASE-27 |
 
 另外还有两条前置过滤：任务被删除 / 取消 / 已完成（`deletedAt` / `cancelledAt` / `completedAt`），
 以及**任务所属项目已归档或已删除**，都不提醒（BASE-28）。
 
 > ⚠️ **收集箱（`inbox`）也会提醒**。它属于活跃状态，和 `next` / `waiting` / `someday` 一样参与计算。
-> 不想让它提醒，就别给收集箱任务设时间，或把任务策略设为 `skip`，或加 `#silent` 标签。
+> 不想让它提醒，就别给收集箱任务设时间，或把任务策略设为 `skip`。
 
 ---
 
@@ -136,15 +136,11 @@
 
 ---
 
-## 6. 标签路由（EXT-19，默认关闭）
+## 6. 渠道投递（默认全部一起发送）
 
-需要 `NOTIFY_TAG_RULES=true` 才生效。标签可以写在任务标题、描述或 `tags` 数组里，`#tag` 与 `@tag` 都认，大小写不敏感。
-
-| 标签（默认值） | 效果 |
-|---|---|
-| `#silent` | 该任务的提醒**所有渠道都不发** |
-| `#notify-email` | 只发邮件 |
-| `#notify-webhook` | 只发 Webhook（含钉钉 / 企微 / 飞书） |
+一条提醒触发后，**所有已启用的渠道都会收到**：邮件 + 每个配置好的 Webhook（含钉钉 / 企微 / 飞书适配器）。
+渠道之间彼此独立：某渠道失败只重投该渠道，不影响其他渠道；已投递过的渠道在重启后也不会重复发。
+不再支持按任务标签挑选渠道，`#silent` / `#notify-email` / `#notify-webhook` 这类标签只是普通文本，不会产生过滤效果。
 
 ---
 
@@ -158,7 +154,7 @@
 | 设了时间却没提醒 | 只写了**日期**没写时刻 | 时间字段是否形如 `2026-11-16T10:11`；`npm run dry-run` 看计划条数 |
 | 晚了几分钟才想起来 | 已超出 **5 分钟补发窗口** → 过期跳过 | `dry-run` 会显示「过期跳过 N 条」 |
 | 全部时间都差 8 小时 | 容器 `TZ` 是 UTC | 容器内 `Intl.DateTimeFormat().resolvedOptions().timeZone` |
-| 单个任务不发 | 策略是 `skip`，或打了 `#silent`，或状态是 `done`/`archived` | 看任务 `reminderPolicy` 与状态；确认 `NOTIFY_TAG_RULES` 是否开启 |
+| 单个任务不发 | 策略是 `skip`，或状态是 `done`/`archived` | 看任务 `reminderPolicy` 与状态 |
 | 只有回顾在发 | 策略设成了 `start`/`due`，或 `skip`（回顾不受影响） | 同上 |
 | 摘要没发 | 对应 `NOTIFY_DIGEST_*` 关了，或 `strict` 模式 | 看配置与启动日志的级别 |
 | 项目回顾没发 | 项目**没有 `reviewAt` 字段**、只写了日期、或项目已归档 | 看 `GET /v1/projects` 返回里有没有 `reviewAt`；`include_review` 是否关掉 |
@@ -197,7 +193,7 @@ node src/cli.ts --dry-run --strict --log-level=debug   # 带完整判定链路
 | 项目回顾触发点实现 | `src/rules/plan.ts` 的 `fromProjectReviews` |
 | 摘要 / `date_only` / `backlog` / 静默时段实现 | `src/rules/plan.ts` |
 | 窗口、去重、投递、告警 | `src/scheduler.ts` |
-| 策略与标签判定 | `src/rules/reminder-plan.ts`、`src/rules/tag-policy.ts` |
+| 提醒策略判定 | `src/rules/reminder-plan.ts` |
 | 配置开关与默认值 | `docs/configuration.md` §4.2 / §4.3 / §4.4 |
 | 消息长什么样（各渠道字段） | `docs/webhook-payload.md` |
 | 部署与排障 | `docs/deployment.md` |
