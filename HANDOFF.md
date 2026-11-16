@@ -1,6 +1,6 @@
 # HANDOFF · 新对话窗口交接包
 
-> 生成时间：2026-11-13 · 最后整理：2026-11-15 23:40（v1.18 仓库上线 + CI 全绿 + 远端部署验证）· 对应 `spec.md` **v1.18**
+> 生成时间：2026-11-13 · 最后整理：2026-11-16 09:20（v1.19 Coolify 文档按现状修订）· 对应 `spec.md` **v1.19**
 > 用途：在**新对话窗口**继续开发 Notify，不必携带前面几十轮对话的历史。
 > 本文件自包含：读完它 + 按需查 `spec.md` 对应章节即可开工。
 >
@@ -200,6 +200,12 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
 退出 0、`docker build` 成功、隔离 compose 部署 `healthz`/`admin` 200 且 `HEALTH=healthy` /
 `READONLY=true`，随后清理无残留。部署用假 token + 不可达 Cloud 地址 + 渠道全关，零副作用。
 详见 §4 第 21 条与 `spec.md` §12.9。
+
+**v1.19 Coolify 文档按现状修订（2026-11-16 09:20）**：纯文档。仓库上线后修正
+`docs/coolify.md` 三处过时内容——前置条件从「先 `git init` 推仓库」改为「代码来源已就绪」
+（公有仓库免 Deploy Key / GitHub App），步骤 1 明确选 `Public Repository` 并填仓库 URL，
+另加 §0「三步快速路径」。Coolify 侧**仍未实际部署**，首次 Deploy 由用户执行。
+详见 `spec.md` §12.10。
 
 ---
 
@@ -435,7 +441,7 @@ GitHub Actions `CI` 首次运行 **completed / success**，三个 job（单测 /
 | `HANDOFF.md` | 本文件，新窗口交接 |
 | `README.md` | 项目速览、命令、目录结构、约束 |
 | `docs/cloud-api.md` | v1.12：Mindwtr Cloud API 调用清单（运行时 / 白名单允许但不用 / 探针与造数脚本 / 主动禁止，含参数、频率、认证与响应要点） |
-| `docs/coolify.md` | v1.16：Coolify 部署教程（Git 源 + Compose Build Pack、环境变量白名单、域名与鉴权、卷/副本/预览、常见坑） |
+| `docs/coolify.md` | v1.16 起：Coolify 部署教程；v1.19 按「仓库已上线」修订前置条件并新增 §0 三步快速路径 |
 | `compose.coolify.yaml` | v1.16：Coolify 专用编排（`${VAR}` 注入、无 env_file/container_name/ports，只读写开关故意不暴露） |
 | `docs/webhook-payload.md` | v1.14：**出站** Webhook 数据格式清单（通用 `generic` 完整字段表、14 种 event 与 JSON 样例、验签头、钉钉/企微/飞书 body、重试与幂等、隐私边界） |
 | `docs/deployment.md` | v1.11：Docker Compose 部署与运维指南（§1.1 附接口摘要，含环境变量两条通道、升级回滚备份、故障排查、安全边界） |

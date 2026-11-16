@@ -1,12 +1,25 @@
 # 在 Coolify 上部署 Notify
 
-> 对应 `spec.md` **v1.18** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 对应 `spec.md` **v1.19** · 已在 **Coolify 4.7.5 / Traefik v3.7** 环境核对（2026-11-15）
+> 代码已在公有仓库 `https://github.com/zlay0701/mindwtr-notify`（main），可直接部署。
 > 本文只讲 Coolify。原生 `docker compose` 见 [部署指南](deployment.md)，配置项含义见
 > [配置参考](configuration.md)，管理页用法见 [页面操作手册](admin-guide.md)，
 > 云端接口见 [Cloud API 调用清单](cloud-api.md)，出站消息格式见 [Webhook 输出格式](webhook-payload.md)。
 >
-> ⚠️ 本文是**部署教程**，撰写时只做了只读环境核对（版本、网络、端口），
-> **没有在你的 Coolify 上创建资源或发起部署**，也没有向任何渠道发消息。
+> ⚠️ 本文是**部署教程**：代码已就绪，但**尚未在你的 Coolify 上创建资源或发起部署**，
+> 也没有向任何渠道发消息。第一次 Deploy 需要你在面板里点。
+
+---
+
+## 0. 三步快速路径（代码已在 GitHub，照这个点就行）
+
+1. **Project → Environment → `+ New` → `Public Repository`**，填
+   `https://github.com/zlay0701/mindwtr-notify`，Build Pack 选 **Docker Compose**。
+2. **Configuration → General**：Base Directory `/`，Docker Compose Location `/compose.coolify.yaml`。
+3. **Environment Variables**（Developer View）粘 §4 步骤 3 的清单，把 `MINDWTR_TOKEN` 与
+   `WEBHOOK_URLS` 换成真实值 → **Deploy**。
+
+配好后**不要配域名**（服务纯出站）；出问题先看 §7 常见坑。每一步的细节与「为什么」在 §1–§6。
 
 ---
 
@@ -38,30 +51,16 @@ Notify 不接收入站业务请求，它只做两件事：定时 `GET` 拉取 Mi
 | 网络 | 服务器能出站访问 `MINDWTR_BASE_URL`、SMTP / Webhook 地址 |
 | 仓库安全 | `.env` **绝不提交**；项目 `.gitignore` 已忽略 `.env` / `.env.*` |
 
-### 2.1 把代码放进 Git 仓库
+### 2.1 代码来源：已就绪，无需再建仓库
 
-> 若 `zlay0701/mindwtr-notify` 已建好且代码已推送，可跳过本节，直接从 §4 步骤 1 开始。
+代码已在**公有仓库** `https://github.com/zlay0701/mindwtr-notify`（main，54 个文件），
+Coolify 直接 clone 即可 —— 公有仓库**不需要 Deploy Key 或 GitHub App**。
 
-本工作区目前不是 Git 仓库，需要先推到一个 Coolify 能访问的仓库：
+如果你要改代码并让 Coolify 跟着更新，fork 一份或用自己的私有仓库，那时才需要配
+Deploy Key / GitHub App，并把 §4 步骤 1 的仓库地址换成你自己的。
 
-```bash
-cd <项目目录>
-
-# 确认敏感文件不会被提交（.gitignore 已忽略 .env / .env.*，仅放行 .env.example）
-git init
-git add .
-git status --short | grep -i '\.env$' && echo "⚠️ 有 .env 被暂存，立刻停止" || echo "OK：没有 .env"
-
-# 可选：工作记忆与交接包是本机资料，通常不需要进仓库
-# echo '.workbuddy/' >> .gitignore
-
-git commit -m "Notify: 初始导入"
-git remote add origin <你的仓库地址>
-git push -u origin main
-```
-
-> `.workbuddy/` 是 WorkBuddy 的项目数据（含工作记忆），**不要删除**；只是建议不纳入公开仓库。
-> `scripts/` 里的探针与造数脚本虽然会进仓库，但被 `.dockerignore` 排除，**不会进生产镜像**。
+> 仓库里**没有** `.env`（`.gitignore` 已忽略），所以部署时按 §4 步骤 3 在面板里填变量。
+> `scripts/` 里的探针与造数脚本虽然进了仓库，但被 `.dockerignore` 排除，**不会进生产镜像**。
 
 ### 2.2 一个很容易踩的坑：别整份复制 `.env.example`
 
@@ -98,7 +97,8 @@ git push -u origin main
 
 ### 步骤 1 · 创建资源（选对类型）
 
-在 Coolify：**Project → Environment → `+ New` → 选你的 Git 仓库 / Git App / Deploy Key**。
+在 Coolify：**Project → Environment → `+ New` → `Public Repository`**，填
+`https://github.com/zlay0701/mindwtr-notify`，点 **Check Repository** 确认能读到仓库。
 
 - **Build Pack 选 `Docker Compose`**
 - 必须走 **Git 仓库** 这条路：项目用 `build: .`，需要仓库里的 `Dockerfile`、`package.json`、`src/`

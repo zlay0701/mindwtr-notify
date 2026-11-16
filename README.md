@@ -31,7 +31,7 @@
 | 文档 | 内容 |
 |---|---|
 | [部署指南](docs/deployment.md) | Docker Compose 部署、运维命令、升级 / 回滚 / 备份、故障排查、安全边界 |
-| [Coolify 部署教程](docs/coolify.md) | Coolify 面板六步部署、环境变量白名单、域名与鉴权、卷 / 副本 / 预览、常见坑 |
+| [Coolify 部署教程](docs/coolify.md) | **三步快速路径** + 六步详细部署、环境变量白名单、域名与鉴权、卷 / 副本 / 预览、常见坑 |
 | [配置参考](docs/configuration.md) | 全部环境变量、启动校验、三态标记、Webhook 验签协议、典型配置样例 |
 | [页面操作手册](docs/admin-guide.md) | `/admin` 管理页、鉴权、六块视图、手动重发、healthz 与 API 速查 |
 | [Cloud API 调用清单](docs/cloud-api.md) | 运行时实际调用的接口、白名单允许但不用、运维脚本、主动禁止的写端点 |
@@ -107,7 +107,7 @@ node tests/e2e-channels.mjs       # 目标 B 四项验收：真实 SMTP 发信 +
 ## 目录结构
 
 ```
-spec.md              规格说明书（唯一权威规则来源，v1.17）
+spec.md              规格说明书（唯一权威规则来源，v1.19）
 HANDOFF.md           新对话窗口的交接包 / 开工提示词
 README.md            本文件
 .env.example         配置模板（不含真实凭据）
