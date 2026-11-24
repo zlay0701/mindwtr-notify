@@ -32,7 +32,7 @@ services:
 
     # ---- 云端只读连接（唯一必填的凭据）----
     environment:
-      MINDWTR_BASE_URL: ${MINDWTR_BASE_URL:-https://mindwtr-cloud.zlay.dpdns.org}
+      MINDWTR_BASE_URL: ${MINDWTR_BASE_URL:-https://mindwtr-cloud-instabox.zlay.dpdns.org}
       MINDWTR_TOKEN: ${MINDWTR_TOKEN:?}
 
       # ---- 全局 / 日志 ----
