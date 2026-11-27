@@ -16,6 +16,11 @@
 #   ${VAR:-默认值}   → 面板里预填默认值
 #   ${VAR:?}        → 必填；为空时 Coolify 阻止部署
 #
+# 【重要】environment 只列常用旋钮，完整键名见 .env.example / docs/configuration.md。
+# Compose 不会把面板里的变量自动传进容器：面板填了但这里没有 ${VAR} 引用的键不生效。
+# 需要新增旋钮时，在这里加一行 `KEY: ${KEY}`，再 Redeploy；代码侧都有内置默认值，
+# 所以删掉不用的行不会让服务起不来，只是那个键以后不能再从面板改。
+#
 # 安全：产品代码对 Mindwtr Cloud 只读（仅白名单内 GET），不含任何写端点调用；
 #       NOTIFY_STATE_PATH / HEALTHZ_PORT 由下面写死，避免状态库被改到只读根文件系统上。
 #
@@ -30,71 +35,44 @@ services:
     image: mindwtr-notify:coolify
     restart: unless-stopped
 
-    # ---- 云端只读连接（唯一必填的凭据）----
+    # ---- 常用旋钮白名单（完整键名见 .env.example / docs/configuration.md）----
     environment:
+      # 云端只读连接（MINDWTR_TOKEN 是唯一必填项）
       MINDWTR_BASE_URL: ${MINDWTR_BASE_URL:-https://mindwtr-cloud-instabox.zlay.dpdns.org}
       MINDWTR_TOKEN: ${MINDWTR_TOKEN:?}
 
-      # ---- 全局 / 日志 ----
       # 进程时区：决定「不带时区」的日期字符串（如 2026-11-16T10:11）按哪个时区解析。
-      # 镜像默认 UTC，不设会让提醒晚 8 小时；这里给 Coolify 面板预填默认值，可自行改。
-      # 与 NOTIFY_TIMEZONE 保持一致：前者管日期解析，后者管时刻渲染。
+      # 镜像默认 UTC，不设会让提醒晚 8 小时；与 NOTIFY_TIMEZONE 保持一致：
+      # 前者管日期解析，后者管时刻渲染。
       TZ: ${TZ:-Asia/Shanghai}
       NOTIFY_TIMEZONE: ${NOTIFY_TIMEZONE:-Asia/Shanghai}
       NOTIFY_LOG_LEVEL: ${NOTIFY_LOG_LEVEL:-info}
-      NOTIFY_STRICT: ${NOTIFY_STRICT:-false}
-      NOTIFY_POLL_SECONDS: ${NOTIFY_POLL_SECONDS}
-      NOTIFY_GRACE_MS: ${NOTIFY_GRACE_MS}
-      NOTIFY_CATCH_UP: ${NOTIFY_CATCH_UP}
-      NOTIFY_NAMESPACE: ${NOTIFY_NAMESPACE:-default}
 
-      # ---- 与官方一致的全局规则 ----
-      NOTIFY_TASK_REMINDER_DEFAULT: ${NOTIFY_TASK_REMINDER_DEFAULT}
-      NOTIFY_INCLUDE_START: ${NOTIFY_INCLUDE_START}
-      NOTIFY_INCLUDE_DUE: ${NOTIFY_INCLUDE_DUE}
-      NOTIFY_INCLUDE_REVIEW: ${NOTIFY_INCLUDE_REVIEW}
-      NOTIFY_INCLUDE_REFERENCE: ${NOTIFY_INCLUDE_REFERENCE}
-      NOTIFY_DIGEST_MORNING: ${NOTIFY_DIGEST_MORNING}
-      NOTIFY_DIGEST_EVENING: ${NOTIFY_DIGEST_EVENING}
-      NOTIFY_DIGEST_WEEKLY: ${NOTIFY_DIGEST_WEEKLY}
-      NOTIFY_DIGEST_WITHOUT_DESCRIPTION: ${NOTIFY_DIGEST_WITHOUT_DESCRIPTION}
-
-      # ---- A 类扩展（默认关闭，strict 可一键归零）----
-      NOTIFY_DATE_ONLY: ${NOTIFY_DATE_ONLY}
-      NOTIFY_BACKLOG: ${NOTIFY_BACKLOG}
-      NOTIFY_QUIET_HOURS: ${NOTIFY_QUIET_HOURS}
-
-      # ---- 可靠性 ----
-      NOTIFY_FAILURE_ALERT_AFTER: ${NOTIFY_FAILURE_ALERT_AFTER}
-      NOTIFY_MAX_BACKOFF_MS: ${NOTIFY_MAX_BACKOFF_MS}
-
-      # ---- 邮件通道 ----
-      SMTP_ENABLED: ${SMTP_ENABLED:-false}
-      SMTP_HOST: ${SMTP_HOST}
-      # 若该 VPS 出站 25/465/587 被拒（目标 VPS 实测如此），把 SMTP_PORT 设为 2587（Resend 备选端口，
-      # STARTTLS，可与 SMTP_REQUIRE_TLS=true 一起用）；2465 是隐式 TLS，当前代码只在 465 时启用，不可用。
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      SMTP_FROM: ${SMTP_FROM}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Notify}
-      SMTP_TO: ${SMTP_TO}
-
-      # ---- Webhook 通道与平台适配器 ----
+      # Webhook 通道（企微 / 钉钉 / 飞书需配 NOTIFY_WEBHOOK_ADAPTERS，否则静默退化成 generic）
       WEBHOOK_ENABLED: ${WEBHOOK_ENABLED:-false}
       WEBHOOK_URLS: ${WEBHOOK_URLS}
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
-      WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-3}
       NOTIFY_WEBHOOK_ADAPTERS: ${NOTIFY_WEBHOOK_ADAPTERS}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
       NOTIFY_WEBHOOK_SECRETS: ${NOTIFY_WEBHOOK_SECRETS}
+      WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-3}
 
-      # ---- /healthz 与 /admin ----
+      # 邮件通道（默认关闭；要启用就把下面几行取消注释，并在面板填对应值）
+      # 若 VPS 出站 25/465/587 被拒，SMTP_PORT 可用 2587（Resend 备选 STARTTLS 端口）；
+      # 2465 是隐式 TLS，当前代码只在 465 时启用，不可用。
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      # SMTP_HOST: ${SMTP_HOST}
+      # SMTP_PORT: ${SMTP_PORT:-587}
+      # SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      # SMTP_USER: ${SMTP_USER}
+      # SMTP_PASS: ${SMTP_PASS}
+      # SMTP_FROM: ${SMTP_FROM}
+      # SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Notify}
+      # SMTP_TO: ${SMTP_TO}
+
+      # /healthz 与 /admin 鉴权（NOTIFY_ADMIN_RETRY 保持 false，除非确实要手动重发）
       HEALTHZ_TOKEN: ${HEALTHZ_TOKEN}
-      NOTIFY_ADMIN_PAGE: ${NOTIFY_ADMIN_PAGE:-true}
       NOTIFY_ADMIN_TOKEN: ${NOTIFY_ADMIN_TOKEN}
       NOTIFY_ADMIN_RETRY: ${NOTIFY_ADMIN_RETRY:-false}
-      NOTIFY_ADMIN_MAX_RECORDS: ${NOTIFY_ADMIN_MAX_RECORDS:-100}
 
       # 这两个是写死值，不要改成 ${...}：状态库必须落在可写卷上。
       NOTIFY_STATE_PATH: /app/data/notify.sqlite
